@@ -1,0 +1,6 @@
+{
+  "name": "Bwana — Location Discovery Platform",
+  "description": "Location-based discovery platform connecting people with businesses, services, professionals, events, and opportunities in Zambia and Southern Africa.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
