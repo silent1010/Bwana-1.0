@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Star,
   CheckCircle,
@@ -13,7 +13,13 @@ import {
   ArrowRight,
   Check,
   CornerDownRight,
-  LogIn
+  LogIn,
+  Camera,
+  Image as ImageIcon,
+  X,
+  Upload,
+  Eye,
+  Maximize2
 } from 'lucide-react';
 import { Business, BusinessReview, UserRole } from '../../types';
 
@@ -25,7 +31,9 @@ interface BusinessReviewsSectionProps {
     rating: number,
     comment: string,
     tags: string[],
-    verifiedVisit: boolean
+    verifiedVisit: boolean,
+    photoUrl?: string,
+    photos?: string[]
   ) => void;
   onHelpfulVote?: (reviewId: string) => void;
   currentUser: {
@@ -70,6 +78,54 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
   const [reportReason, setReportReason] = useState('Offensive or abusive language');
   const [reportedReviews, setReportedReviews] = useState<Record<string, boolean>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Photo Attachment State
+  const [attachedPhotos, setAttachedPhotos] = useState<string[]>([]);
+  const [showPhotoUrlInput, setShowPhotoUrlInput] = useState(false);
+  const [customPhotoUrl, setCustomPhotoUrl] = useState('');
+  const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sample quick Zambia merchant/storefront photos for demonstration
+  const quickPhotoPresets = [
+    { label: 'Storefront & Products', url: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80' },
+    { label: 'Receipt / Order', url: 'https://images.unsplash.com/photo-1554415707-9e4466701498?auto=format&fit=crop&w=800&q=80' },
+    { label: 'Installed Equipment', url: 'https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=800&q=80' },
+    { label: 'Coffee & Food', url: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=800&q=80' },
+  ];
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file) => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            setAttachedPhotos((prev) => [...prev, reader.result as string]);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
+
+  const handleAddCustomUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customPhotoUrl.trim()) return;
+    setAttachedPhotos((prev) => [...prev, customPhotoUrl.trim()]);
+    setCustomPhotoUrl('');
+    setShowPhotoUrlInput(false);
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setAttachedPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
 
   // Dynamic distribution calculations
   const distribution = useMemo(() => {
@@ -156,26 +212,30 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
 
   const handleSubmitReview = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser.isAuthenticated) {
-      onRequireLogin();
-      return;
-    }
     if (!comment.trim()) return;
 
     setIsSubmitting(true);
+    const primaryPhoto = attachedPhotos.length > 0 ? attachedPhotos[0] : undefined;
+    const allPhotos = attachedPhotos.length > 0 ? attachedPhotos : undefined;
+
     setTimeout(() => {
       onAddReview(
         business.id,
         selectedRating,
         comment.trim(),
         selectedTags,
-        verifiedVisit
+        verifiedVisit,
+        primaryPhoto,
+        allPhotos
       );
       setComment('');
       setSelectedTags(['Fair Kwacha Pricing']);
+      setAttachedPhotos([]);
+      setShowPhotoUrlInput(false);
+      setCustomPhotoUrl('');
       setIsSubmitting(false);
       setShowReviewForm(false);
-      setSuccessMessage('✓ Review published successfully! Your rating has updated the merchant profile.');
+      setSuccessMessage('✓ Review published successfully with attached photos! Your rating has updated the merchant profile.');
       setTimeout(() => setSuccessMessage(null), 5000);
     }, 300);
   };
@@ -207,36 +267,6 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
             className="text-emerald-200 hover:text-white px-2 py-0.5 rounded cursor-pointer"
           >
             ✕
-          </button>
-        </div>
-      )}
-
-      {/* Unauthenticated User Callout Banner */}
-      {!currentUser.isAuthenticated && (
-        <div className="p-4 bg-gradient-to-r from-emerald-950 via-stone-900 to-stone-900 text-white rounded-2xl border border-emerald-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shrink-0">
-              <LogIn className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="font-bold text-sm text-stone-100 flex items-center gap-2">
-                <span>Have you transacted with {business.name}?</span>
-                <span className="text-[10px] uppercase font-mono bg-emerald-900/80 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-700/60">
-                  Customer Reviews
-                </span>
-              </p>
-              <p className="text-stone-300 text-xs mt-0.5">
-                Sign in to leave a star rating, share Kwacha pricing transparency, and post verified feedback.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onRequireLogin}
-            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-stone-950 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>Sign In to Review</span>
           </button>
         </div>
       )}
@@ -296,13 +326,7 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={() => {
-                  if (!currentUser.isAuthenticated) {
-                    onRequireLogin();
-                  } else {
-                    setShowReviewForm(true);
-                  }
-                }}
+                onClick={() => setShowReviewForm(true)}
                 className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Star className="w-4 h-4 fill-white" />
@@ -459,6 +483,147 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
               <span>Be constructive and specific to help other Zambian buyers.</span>
               <span className="font-mono">{comment.length} characters</span>
             </div>
+          </div>
+
+          {/* Photo Attachment Section */}
+          <div className="space-y-2.5 p-4 bg-stone-50 border border-stone-200 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-xs font-bold text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Attach Photos (Optional)</span>
+                </label>
+                <p className="text-[11px] text-stone-500 mt-0.5">
+                  Add photos of the storefront, products bought, receipt, or completed work.
+                </p>
+              </div>
+
+              <span className="text-[10px] font-mono text-stone-400">
+                {attachedPhotos.length} / 5 photos
+              </span>
+            </div>
+
+            {/* Hidden native file input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="image/*"
+              multiple
+              className="hidden"
+            />
+
+            {/* Action Buttons: Choose File or Paste URL or Use Sample */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={attachedPhotos.length >= 5}
+                className="px-3 py-1.5 bg-white hover:bg-stone-100 text-stone-800 border border-stone-300 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Upload from Device</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowPhotoUrlInput(!showPhotoUrlInput)}
+                disabled={attachedPhotos.length >= 5}
+                className="px-3 py-1.5 bg-white hover:bg-stone-100 text-stone-700 border border-stone-300 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <ImageIcon className="w-3.5 h-3.5 text-stone-500" />
+                <span>Add Image URL</span>
+              </button>
+
+              {/* Sample quick photo chips */}
+              <div className="flex flex-wrap items-center gap-1.5 ml-auto text-[11px]">
+                <span className="text-stone-400 font-medium">Quick add:</span>
+                {quickPhotoPresets.map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      if (attachedPhotos.length < 5) {
+                        setAttachedPhotos((prev) => [...prev, preset.url]);
+                      }
+                    }}
+                    disabled={attachedPhotos.length >= 5}
+                    className="px-2 py-0.5 bg-stone-200/70 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-stone-600 border border-stone-300/80 rounded text-[10px] transition-colors cursor-pointer disabled:opacity-40"
+                    title={`Attach ${preset.label} photo`}
+                  >
+                    + {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom URL Input Accordion */}
+            {showPhotoUrlInput && (
+              <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-stone-200 animate-in fade-in duration-150">
+                <input
+                  type="url"
+                  value={customPhotoUrl}
+                  onChange={(e) => setCustomPhotoUrl(e.target.value)}
+                  placeholder="https://example.com/photo.jpg"
+                  className="flex-1 px-2.5 py-1 text-xs border border-stone-200 rounded focus:outline-none focus:border-emerald-600"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomUrl}
+                  className="px-3 py-1 bg-stone-900 hover:bg-stone-800 text-white rounded text-xs font-medium transition-colors cursor-pointer"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPhotoUrlInput(false)}
+                  className="text-stone-400 hover:text-stone-600 p-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Thumbnail Preview Grid */}
+            {attachedPhotos.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5 pt-2">
+                {attachedPhotos.map((photo, idx) => (
+                  <div
+                    key={idx}
+                    className="relative aspect-square rounded-lg overflow-hidden border border-stone-200 bg-stone-100 group shadow-2xs"
+                  >
+                    <img
+                      src={photo}
+                      alt={`Review attachment ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-stone-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPreviewImage(photo)}
+                        className="w-7 h-7 rounded-full bg-white/90 text-stone-900 flex items-center justify-center hover:bg-white transition-colors cursor-pointer"
+                        title="Zoom in"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(idx)}
+                        className="w-7 h-7 rounded-full bg-rose-600 text-white flex items-center justify-center hover:bg-rose-700 transition-colors cursor-pointer"
+                        title="Remove photo"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {idx === 0 && (
+                      <span className="absolute bottom-1 left-1 bg-emerald-950/90 text-emerald-300 text-[9px] font-mono px-1.5 py-0.5 rounded backdrop-blur-xs">
+                        Cover
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Verified visit confirmation checkbox */}
@@ -655,6 +820,34 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
                   "{rev.comment}"
                 </p>
 
+                {/* Review Photos Gallery (Section 5 & 12: Customer uploaded review photos) */}
+                {((rev.photos && rev.photos.length > 0) || rev.photoUrl) && (
+                  <div className="pl-0 sm:pl-12 pt-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {Array.from(new Set([...(rev.photos || []), ...(rev.photoUrl ? [rev.photoUrl] : [])])).map((photo, pIdx) => (
+                        <div
+                          key={pIdx}
+                          onClick={() => setSelectedPreviewImage(photo)}
+                          className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden border border-stone-200 bg-stone-100 cursor-pointer group shadow-2xs hover:border-emerald-500 transition-all"
+                        >
+                          <img
+                            src={photo}
+                            alt={`Photo by ${rev.userName} for ${business.name}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            loading="lazy"
+                          />
+                          <div className="absolute inset-0 bg-stone-950/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Maximize2 className="w-4 h-4 text-white drop-shadow-sm" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-stone-400 mt-1 block">
+                      📷 Customer photo evidence attached
+                    </span>
+                  </div>
+                )}
+
                 {/* Official Business Owner Response Block (PRD Section 10) */}
                 {rev.response && (
                   <div className="ml-0 sm:ml-12 p-4 bg-stone-50 rounded-xl border-l-3 border-emerald-600 space-y-1.5 text-xs">
@@ -751,6 +944,42 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
                 className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-semibold cursor-pointer"
               >
                 Submit Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. FULL-SCREEN REVIEW PHOTO LIGHTBOX PREVIEW */}
+      {selectedPreviewImage && (
+        <div
+          onClick={() => setSelectedPreviewImage(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/90 backdrop-blur-sm animate-in fade-in duration-150 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-3xl max-h-[85vh] bg-stone-900 rounded-2xl overflow-hidden shadow-2xl border border-stone-800 flex flex-col"
+          >
+            <div className="absolute top-3 right-3 z-10">
+              <button
+                onClick={() => setSelectedPreviewImage(null)}
+                className="w-8 h-8 rounded-full bg-stone-950/80 hover:bg-stone-900 text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <img
+              src={selectedPreviewImage}
+              alt="Enlarged review photo"
+              className="max-h-[80vh] w-auto object-contain mx-auto"
+            />
+            <div className="p-3 bg-stone-950 text-stone-300 text-xs flex items-center justify-between">
+              <span>Customer photo attachment for {business.name}</span>
+              <button
+                onClick={() => setSelectedPreviewImage(null)}
+                className="text-emerald-400 hover:underline text-[11px]"
+              >
+                Close Preview
               </button>
             </div>
           </div>

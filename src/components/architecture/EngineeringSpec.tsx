@@ -60,19 +60,56 @@ CREATE TYPE verification_status_enum AS ENUM ('unverified', 'claimed', 'verified
 CREATE TYPE price_type_enum AS ENUM ('fixed', 'starting_from', 'price_range', 'contact_for_price', 'negotiable');
 CREATE TYPE opportunity_type_enum AS ENUM ('job', 'tender', 'internship', 'scholarship', 'business_grant');
 
--- 3. Geographic & Administrative Location Hierarchy
-CREATE TABLE locations_hierarchy (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    country_code VARCHAR(2) NOT NULL DEFAULT 'ZM', -- ISO 3166-1 alpha-2 (ZM = Zambia)
-    country_name VARCHAR(100) NOT NULL DEFAULT 'Zambia',
-    province VARCHAR(100) NOT NULL, -- e.g., 'Copperbelt', 'Lusaka', 'Southern'
-    district VARCHAR(100) NOT NULL, -- e.g., 'Kitwe', 'Ndola', 'Lusaka Metro'
-    city_or_area VARCHAR(150) NOT NULL, -- e.g., 'Parklands', 'Nkana East', 'Rhodes Park'
-    geom GEOGRAPHY(Point, 4326) NOT NULL, -- WGS84 Spatial Geography Point
+-- 3. Hierarchical Geographic & Administrative Data Model (Multi-Country Ready)
+-- Model: Country → Province/Region → District → City/Town → Area/Neighborhood → Coordinates
+CREATE TABLE countries (
+    code VARCHAR(2) PRIMARY KEY, -- ISO 3166-1 alpha-2 (e.g., 'ZM', 'ZW', 'BW', 'MW', 'NA', 'MZ', 'ZA', 'TZ')
+    name VARCHAR(100) NOT NULL, -- e.g., 'Zambia', 'Zimbabwe', 'Botswana'
+    currency_code VARCHAR(3) NOT NULL, -- e.g., 'ZMW', 'USD', 'BWP'
+    currency_symbol VARCHAR(10) NOT NULL, -- e.g., 'K', '$', 'P'
+    phone_prefix VARCHAR(10) NOT NULL, -- e.g., '+260', '+263', '+267'
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_locations_geom ON locations_hierarchy USING GIST (geom);
+
+CREATE TABLE provinces_regions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    country_code VARCHAR(2) NOT NULL REFERENCES countries(code) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL, -- e.g., 'Copperbelt', 'Lusaka', 'Southern', 'Harare Province'
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_provinces_country ON provinces_regions(country_code);
+
+CREATE TABLE districts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    province_id UUID NOT NULL REFERENCES provinces_regions(id) ON DELETE CASCADE,
+    country_code VARCHAR(2) NOT NULL REFERENCES countries(code) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL, -- e.g., 'Kitwe', 'Ndola', 'Livingstone', 'Lusaka'
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_districts_province ON districts(province_id);
+
+CREATE TABLE cities_towns (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    district_id UUID NOT NULL REFERENCES districts(id) ON DELETE CASCADE,
+    province_id UUID NOT NULL REFERENCES provinces_regions(id) ON DELETE CASCADE,
+    country_code VARCHAR(2) NOT NULL REFERENCES countries(code) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL, -- e.g., 'Kitwe', 'Ndola', 'Lusaka', 'Solwezi', 'Kasama', 'Mongu'
+    is_major_city BOOLEAN NOT NULL DEFAULT FALSE,
+    geom GEOGRAPHY(Point, 4326) NOT NULL, -- WGS84 Spatial Geography Point
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_cities_geom ON cities_towns USING GIST (geom);
+CREATE INDEX idx_cities_district ON cities_towns(district_id);
+
+CREATE TABLE areas_neighborhoods (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    city_id UUID NOT NULL REFERENCES cities_towns(id) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL, -- e.g., 'Parklands', 'Riverside', 'Kabulonga', 'Town Centre'
+    geom GEOGRAPHY(Point, 4326) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_areas_geom ON areas_neighborhoods USING GIST (geom);
 
 -- 4. User Accounts & Identity
 CREATE TABLE users (
@@ -618,13 +655,18 @@ CREATE INDEX idx_audit_created ON audit_logs(created_at DESC);`;
       {/* API GATEWAY ENDPOINTS TAB */}
       {selectedSpecTab === 'api_gateway' && (
         <div className="bg-white border border-stone-200 rounded-2xl p-6 space-y-4">
-          <div>
-            <h3 className="text-base font-bold font-display text-stone-900">
-              Bwana v1.0 Core REST / OpenAPI Endpoints Specification
-            </h3>
-            <p className="text-xs text-stone-500">
-              Clean contracts between Web, Android, iOS apps and the API Gateway.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold font-display text-stone-900">
+                Bwana v1.0 Production REST API Endpoints Specification
+              </h3>
+              <p className="text-xs text-stone-500">
+                Standardized contracts with request validation, DTOs, rate-limiting, error structures, filtering, sorting, and pagination.
+              </p>
+            </div>
+            <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 self-start sm:self-auto">
+              Consistent Response: ApiResponse&lt;T&gt;
+            </span>
           </div>
 
           <div className="border border-stone-200 rounded-xl overflow-hidden text-xs">
@@ -633,46 +675,82 @@ CREATE INDEX idx_audit_created ON audit_logs(created_at DESC);`;
                 <tr>
                   <th className="p-3">Method</th>
                   <th className="p-3 font-mono">Endpoint Path</th>
-                  <th className="p-3">Service</th>
-                  <th className="p-3">Description & Payload</th>
+                  <th className="p-3">Auth & RBAC</th>
+                  <th className="p-3">Features & DTO Contract</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100 font-mono text-[11px]">
                 <tr>
-                  <td className="p-3"><span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">GET</span></td>
-                  <td className="p-3 font-semibold text-stone-900">/api/v1/discovery/nearby</td>
-                  <td className="p-3 text-stone-600 font-sans">Discovery</td>
-                  <td className="p-3 text-stone-600 font-sans">Params: lat, lon, radius_km, category. Returns businesses ordered by PostGIS ST_Distance.</td>
-                </tr>
-                <tr>
                   <td className="p-3"><span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded">POST</span></td>
-                  <td className="p-3 font-semibold text-stone-900">/api/v1/auth/phone/request-otp</td>
-                  <td className="p-3 text-stone-600 font-sans">Identity</td>
-                  <td className="p-3 text-stone-600 font-sans">Body: {`{ phone: "+26097xxxxxxx" }`}. Sends 6-digit SMS verification code.</td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/auth/login</td>
+                  <td className="p-3 text-stone-600 font-sans">Public (60 req/min)</td>
+                  <td className="p-3 text-stone-600 font-sans">Body: {`{ email/phone, role }`}. Issues JWT Bearer token & session DTO.</td>
                 </tr>
                 <tr>
                   <td className="p-3"><span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">GET</span></td>
-                  <td className="p-3 font-semibold text-stone-900">/api/v1/businesses/{'{id}'}</td>
-                  <td className="p-3 text-stone-600 font-sans">Business</td>
-                  <td className="p-3 text-stone-600 font-sans">Returns profile, opening hours, verified status, products, services & promotions.</td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/users</td>
+                  <td className="p-3 text-stone-600 font-sans">Registered / Admin</td>
+                  <td className="p-3 text-stone-600 font-sans">Returns authenticated users, profiles, and configurable staff permissions.</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">GET</span></td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/businesses</td>
+                  <td className="p-3 text-stone-600 font-sans">Public (No Auth Req)</td>
+                  <td className="p-3 text-stone-600 font-sans">Filtering (category, city, verified), Sorting (rating, reviewsCount), Pagination (page, limit, totalPages).</td>
                 </tr>
                 <tr>
                   <td className="p-3"><span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded">POST</span></td>
-                  <td className="p-3 font-semibold text-stone-900">/api/v1/businesses/{'{id}'}/claim</td>
-                  <td className="p-3 text-stone-600 font-sans">Business</td>
-                  <td className="p-3 text-stone-600 font-sans">Claims ownership. Body: {`{ pacra_no, tpin, contact_person, documents: [] }`}.</td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/businesses</td>
+                  <td className="p-3 text-stone-600 font-sans">Owner / Admin</td>
+                  <td className="p-3 text-stone-600 font-sans">Request validation DTO. Creates listing and queues verification request.</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">GET</span></td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/categories</td>
+                  <td className="p-3 text-stone-600 font-sans">Public (Cached CDN)</td>
+                  <td className="p-3 text-stone-600 font-sans">Returns commercial category taxonomy with merchant count badges.</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">GET</span></td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/search</td>
+                  <td className="p-3 text-stone-600 font-sans">Public (PostGIS Spatial)</td>
+                  <td className="p-3 text-stone-600 font-sans">Params: lat, lng, radius_km, q. Orders by spherical distance & keyword match.</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">GET</span></td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/reviews</td>
+                  <td className="p-3 text-stone-600 font-sans">Public</td>
+                  <td className="p-3 text-stone-600 font-sans">Filter by businessId. Returns ratings, verified visit badges, and responses.</td>
                 </tr>
                 <tr>
                   <td className="p-3"><span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded">POST</span></td>
                   <td className="p-3 font-semibold text-stone-900">/api/v1/reviews</td>
-                  <td className="p-3 text-stone-600 font-sans">Engagement</td>
-                  <td className="p-3 text-stone-600 font-sans">Body: {`{ business_id, rating, comment }`}. Rate-limited & spam screened.</td>
+                  <td className="p-3 text-stone-600 font-sans">Registered User (Bearer)</td>
+                  <td className="p-3 text-stone-600 font-sans">Validation: rating (1-5), comment. Updates aggregate business score.</td>
                 </tr>
                 <tr>
-                  <td className="p-3"><span className="text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded">PUT</span></td>
-                  <td className="p-3 font-semibold text-stone-900">/api/v1/admin/verifications/{'{id}'}/approve</td>
-                  <td className="p-3 text-stone-600 font-sans">Staff / Admin</td>
-                  <td className="p-3 text-stone-600 font-sans">Grants Bwana Verified ✓ badge & emits audit_logs entry.</td>
+                  <td className="p-3"><span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">GET</span></td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/locations</td>
+                  <td className="p-3 text-stone-600 font-sans">Public</td>
+                  <td className="p-3 text-stone-600 font-sans">Returns 6-tier hierarchical locations (Country → Province → District → Town).</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded">POST</span></td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/favorites/toggle</td>
+                  <td className="p-3 text-stone-600 font-sans">Registered User (Bearer)</td>
+                  <td className="p-3 text-stone-600 font-sans">Body: {`{ businessId }`}. Toggles saved state and updates bookmarks count.</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded">POST</span></td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/reports</td>
+                  <td className="p-3 text-stone-600 font-sans">Registered / Public</td>
+                  <td className="p-3 text-stone-600 font-sans">Body: {`{ targetType, targetId, reason }`}. Queues for moderation desk.</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">GET</span></td>
+                  <td className="p-3 font-semibold text-stone-900">/api/v1/admin/stats</td>
+                  <td className="p-3 text-stone-600 font-sans">Admin Only (RBAC)</td>
+                  <td className="p-3 text-stone-600 font-sans">Platform health, verified enterprise ratio, pending reports, audit telemetry.</td>
                 </tr>
               </tbody>
             </table>

@@ -1,0 +1,154 @@
+{
+  "entities": {
+    "Business": {
+      "title": "Business",
+      "description": "Commercial enterprise or verified trade profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "tagline": { "type": "string" },
+        "description": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "verificationStatus": { "type": "string", "enum": ["unverified", "claimed", "verified"] },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "address": { "type": "string" },
+        "area": { "type": "string" },
+        "city": { "type": "string" },
+        "province": { "type": "string" },
+        "isOpenNow": { "type": "boolean" },
+        "isFeatured": { "type": "boolean" },
+        "claimedByUserId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "categoryName", "verificationStatus", "phone", "whatsapp", "city", "province"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "User feedback and rating for a business",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "helpfulCount": { "type": "number" },
+        "verifiedVisit": { "type": "boolean" }
+      },
+      "required": ["id", "businessId", "userId", "userName", "rating", "comment"]
+    },
+    "VerificationRequest": {
+      "title": "VerificationRequest",
+      "description": "Formal business claim or verification submission",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "businessName": { "type": "string" },
+        "requesterName": { "type": "string" },
+        "requesterEmail": { "type": "string" },
+        "requesterPhone": { "type": "string" },
+        "pacraNumber": { "type": "string" },
+        "zraTpin": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "submittedAt": { "type": "string" }
+      },
+      "required": ["id", "businessId", "requesterEmail", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Platform audit and compliance log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "actor": { "type": "string" },
+        "role": { "type": "string" },
+        "action": { "type": "string" },
+        "targetEntity": { "type": "string" },
+        "targetId": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "actor", "action"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app alert for customers and business managers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "title", "message", "timestamp", "read"]
+    },
+    "Country": {
+      "title": "Country",
+      "description": "Sovereign geographic nation market (e.g. Zambia, Zimbabwe, Botswana)",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "currency": { "type": "string" },
+        "phonePrefix": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["code", "name", "currency", "phonePrefix"]
+    },
+    "CityTown": {
+      "title": "CityTown",
+      "description": "Urban municipality or town in hierarchical geographic model",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "districtId": { "type": "string" },
+        "provinceId": { "type": "string" },
+        "countryCode": { "type": "string" },
+        "isMajorCity": { "type": "boolean" }
+      },
+      "required": ["id", "name", "countryCode"]
+    }
+  },
+  "firestore": {
+    "/countries/{countryCode}": {
+      "schema": "Country",
+      "description": "Geographic country markets supporting pan-African expansion"
+    },
+    "/cities/{cityId}": {
+      "schema": "CityTown",
+      "description": "Standardized hierarchical towns and municipalities"
+    },
+    "/businesses/{businessId}": {
+      "schema": "Business",
+      "description": "Public verified directory of businesses, products, services and attributes"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Customer reviews and ratings for verified businesses"
+    },
+    "/verifications/{verificationId}": {
+      "schema": "VerificationRequest",
+      "description": "PACRA and ZRA compliance verification requests"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "System compliance and operational audit log trail"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Real-time user and merchant notifications"
+    }
+  }
+}

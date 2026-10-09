@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'm.mumba8@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Connection Health Check endpoint
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // Admins collection
+    match /admins/{adminId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Geographic datasets (Read globally, write by Admin)
+    match /countries/{countryCode} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /cities/{cityId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Businesses collection
+    match /businesses/{businessId} {
+      allow read: if true;
+      allow create, update: if isValidId(businessId) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() <= 200;
+      allow delete: if isAdmin();
+    }
+
+    // Reviews collection
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create, update: if isValidId(reviewId) &&
+        request.resource.data.businessId is string &&
+        request.resource.data.rating is number &&
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5;
+      allow delete: if isAdmin();
+    }
+
+    // Verification requests collection
+    match /verifications/{verificationId} {
+      allow read: if true;
+      allow create, update: if isValidId(verificationId);
+      allow delete: if isAdmin();
+    }
+
+    // Audit logs collection (Append only)
+    match /auditLogs/{logId} {
+      allow read: if true;
+      allow create: if isValidId(logId) &&
+        request.resource.data.action is string;
+      allow update, delete: if false;
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(notificationId);
+    }
+
+    // Default deny for unhandled collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

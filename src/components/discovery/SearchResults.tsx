@@ -9,17 +9,21 @@ import {
   CheckCircle,
   Layers,
   Map as MapIcon,
-  List
+  List,
+  Columns
 } from 'lucide-react';
 import { Business, Category, LocationArea } from '../../types';
 import { CATEGORIES, LOCATIONS } from '../../data/mockData';
 import { BusinessCard } from '../business/BusinessCard';
+import { DiscoveryMapView } from '../common/DiscoveryMapView';
 
 interface SearchResultsProps {
   businesses: Business[];
   currentLocation: LocationArea;
   selectedCategory: string;
   onSelectCategory: (catId: string) => void;
+  selectedTag?: string;
+  onSelectTag?: (tag: string) => void;
   onSelectBusiness: (biz: Business) => void;
   onCall: (phone: string, e: React.MouseEvent) => void;
   onWhatsApp: (whatsapp: string, e: React.MouseEvent) => void;
@@ -34,6 +38,8 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   currentLocation,
   selectedCategory,
   onSelectCategory,
+  selectedTag = 'all',
+  onSelectTag,
   onSelectBusiness,
   onCall,
   onWhatsApp,
@@ -46,7 +52,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [onlyVerified, setOnlyVerified] = useState(false);
   const [sortBy, setSortBy] = useState<'distance' | 'rating' | 'reviews'>('distance');
-  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'split' | 'map'>('list');
 
   const filtered = businesses.filter((b) => {
     const matchSearch =
@@ -54,18 +60,22 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
       b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.tagline.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
       b.products?.some((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
       b.services?.some((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchCategory =
       selectedCategory === 'all' || b.categoryId === selectedCategory;
 
+    const matchTag =
+      !selectedTag || selectedTag === 'all' || b.tags?.includes(selectedTag);
+
     const matchCity =
       selectedCity === 'all' || b.city.toLowerCase() === selectedCity.toLowerCase();
 
     const matchVerified = !onlyVerified || b.verificationStatus === 'verified';
 
-    return matchSearch && matchCategory && matchCity && matchVerified;
+    return matchSearch && matchCategory && matchTag && matchCity && matchVerified;
   }).sort((a, b) => {
     if (sortBy === 'distance') return (a.distanceKm || 0) - (b.distanceKm || 0);
     if (sortBy === 'rating') return b.rating - a.rating;
@@ -90,28 +100,39 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start md:self-auto">
+          <div className="flex items-center gap-1.5 self-start md:self-auto bg-stone-100 p-1 rounded-xl border border-stone-200">
             <button
               onClick={() => setViewMode('list')}
-              className={`p-2 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
                 viewMode === 'list'
-                  ? 'bg-stone-900 text-white border-stone-900'
-                  : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                  ? 'bg-stone-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              <List className="w-4 h-4" />
+              <List className="w-3.5 h-3.5" />
               <span>Grid</span>
             </button>
             <button
-              onClick={() => setViewMode('map')}
-              className={`p-2 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
-                viewMode === 'map'
-                  ? 'bg-stone-900 text-white border-stone-900'
-                  : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+              onClick={() => setViewMode('split')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === 'split'
+                  ? 'bg-stone-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              <MapIcon className="w-4 h-4" />
-              <span>Map View</span>
+              <Columns className="w-3.5 h-3.5" />
+              <span>Split Map</span>
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === 'map'
+                  ? 'bg-stone-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+              <span>Full Map</span>
             </button>
           </div>
         </div>
@@ -147,17 +168,17 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
 
           <div>
             <select
-              aria-label="Filter directory by city"
+              aria-label="Filter directory by city or town"
               value={selectedCity}
               onChange={(e) => setSelectedCity(e.target.value)}
               className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs text-stone-700 focus:outline-none focus:border-emerald-500"
             >
-              <option value="all">All Zambian Cities</option>
-              <option value="Kitwe">Kitwe (Copperbelt)</option>
-              <option value="Lusaka">Lusaka (Capital)</option>
-              <option value="Ndola">Ndola</option>
-              <option value="Livingstone">Livingstone</option>
-              <option value="Solwezi">Solwezi</option>
+              <option value="all">All Locations (Across Markets)</option>
+              {LOCATIONS.map((loc) => (
+                <option key={loc.id} value={loc.city}>
+                  {loc.city} ({loc.district} · {loc.province}, {loc.country})
+                </option>
+              ))}
             </select>
           </div>
 
@@ -186,90 +207,142 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Tag Filter Pills Bar */}
+        <div className="mt-4 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+          <span className="text-xs text-stone-500 font-semibold shrink-0 mr-1">Filter by Attribute:</span>
+          {['all', '24/7 Open', 'Wheelchair Accessible', 'Delivery Available', 'Free WiFi', 'Card & Mobile Money', 'Customer Parking', 'Emergency Service'].map((tag) => (
+            <button
+              key={tag}
+              onClick={() => onSelectTag && onSelectTag(tag)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors whitespace-nowrap cursor-pointer ${
+                selectedTag === tag
+                  ? 'bg-emerald-900 text-white border-emerald-900 font-bold'
+                  : 'bg-white text-stone-600 border-stone-200 hover:border-emerald-400 hover:text-emerald-800'
+              }`}
+            >
+              {tag === 'all' ? 'All Attributes' : tag}
+            </button>
+          ))}
+        </div>
+
+        {/* Active Tag Filter Indicator */}
+        {selectedTag && selectedTag !== 'all' && (
+          <div className="mt-3 flex items-center justify-between p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">Filtering by Attribute:</span>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-700 text-white font-mono font-bold text-[11px]">
+                {selectedTag}
+              </span>
+              <span className="text-emerald-700 text-[11px]">({filtered.length} businesses found)</span>
+            </div>
+            {onSelectTag && (
+              <button
+                onClick={() => onSelectTag('all')}
+                className="text-xs text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer"
+              >
+                Clear attribute filter
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* MAP VIEW PREVIEW */}
+      {/* REAL LEAFLET MAP VIEW */}
       {viewMode === 'map' && (
-        <div className="mb-8 p-4 bg-stone-900 rounded-2xl border border-stone-800 text-white space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-emerald-400" />
-              <h3 className="font-bold text-sm">PostGIS Spatial Map Projection</h3>
-            </div>
-            <span className="text-xs font-mono text-stone-400">
-              Center: {currentLocation.name} ({currentLocation.coordinates.latitude.toFixed(4)}, {currentLocation.coordinates.longitude.toFixed(4)})
+        <div className="mb-8 space-y-4">
+          <div className="flex items-center justify-between text-xs text-stone-500">
+            <span className="font-semibold text-stone-800">
+              Interactive Leaflet Map · {filtered.length} Locations around {currentLocation.name}
+            </span>
+            <span className="font-mono text-emerald-700">
+              {currentLocation.coordinates.latitude.toFixed(4)}, {currentLocation.coordinates.longitude.toFixed(4)}
             </span>
           </div>
 
-          {/* Interactive Stylized Spatial Map Canvas */}
-          <div className="relative h-64 sm:h-80 bg-stone-950 rounded-xl overflow-hidden border border-stone-800 flex items-center justify-center">
-            {/* Grid pattern overlay */}
-            <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px]" />
+          <DiscoveryMapView
+            businesses={filtered}
+            center={currentLocation.coordinates}
+            heightClass="h-[480px] sm:h-[540px]"
+            onSelectBusiness={onSelectBusiness}
+            onCall={onCall}
+            onDirections={onDirections}
+            showRadiusCircle={true}
+            radiusKm={15}
+          />
+        </div>
+      )}
 
-            {/* Concentric distance circles */}
-            <div className="absolute w-44 h-44 rounded-full border border-dashed border-emerald-500/20 flex items-center justify-center">
-              <span className="absolute -top-4 text-[10px] font-mono text-emerald-500/70">2 km radius</span>
+      {/* SPLIT MAP & LIST VIEW */}
+      {viewMode === 'split' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left 7 cols: Business cards list */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="flex items-center justify-between text-xs text-stone-500 pb-2 border-b border-stone-200">
+              <span className="font-semibold text-stone-800">{filtered.length} Verified Businesses</span>
+              <span>Coordinates relative to {currentLocation.name}</span>
             </div>
-            <div className="absolute w-72 h-72 rounded-full border border-dashed border-emerald-500/20 flex items-center justify-center">
-              <span className="absolute -top-4 text-[10px] font-mono text-emerald-500/70">5 km radius</span>
-            </div>
 
-            {/* Current user GPS pin */}
-            <div className="absolute z-10 flex flex-col items-center">
-              <div className="w-5 h-5 rounded-full bg-emerald-500 animate-ping absolute" />
-              <div className="w-4 h-4 rounded-full bg-emerald-400 border-2 border-white relative z-10" />
-              <span className="text-[10px] font-mono bg-stone-900/90 px-1.5 py-0.5 rounded text-white mt-1">
-                You ({currentLocation.district})
-              </span>
-            </div>
-
-            {/* Render business pins on the simulated spatial plane */}
-            {filtered.map((biz, idx) => {
-              // Calculate spatial offset relative to center
-              const angle = (idx * 60) * (Math.PI / 180);
-              const radiusPixels = Math.min((biz.distanceKm || 1) * 35, 120);
-              const x = Math.cos(angle) * radiusPixels;
-              const y = Math.sin(angle) * radiusPixels;
-
-              return (
-                <button
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {filtered.map((biz) => (
+                <BusinessCard
                   key={biz.id}
-                  onClick={() => onSelectBusiness(biz)}
-                  style={{ transform: `translate(${x}px, ${y}px)` }}
-                  className="absolute p-1.5 bg-stone-900 hover:bg-emerald-600 border border-emerald-400 rounded-lg text-white shadow-md flex items-center gap-1.5 transition-transform hover:scale-110 cursor-pointer group z-20"
-                >
-                  <Building2 className="w-3 h-3 text-emerald-300" />
-                  <span className="text-[10px] font-bold max-w-[90px] truncate">{biz.name}</span>
-                  <span className="text-[9px] font-mono bg-stone-800 group-hover:bg-emerald-700 px-1 py-0.2 rounded">
-                    {biz.distanceKm}km
-                  </span>
-                </button>
-              );
-            })}
+                  business={biz}
+                  onSelect={onSelectBusiness}
+                  onCall={onCall}
+                  onWhatsApp={onWhatsApp}
+                  onDirections={onDirections}
+                  isSaved={savedBusinessIds.includes(biz.id)}
+                  onToggleSave={onToggleSave}
+                />
+              ))}
+            </div>
+
+            {filtered.length === 0 && (
+              <div className="p-8 text-center text-stone-500 bg-white rounded-2xl border border-stone-200">
+                <h3 className="text-sm font-semibold text-stone-800">No businesses match your filters</h3>
+              </div>
+            )}
           </div>
 
-          <div className="text-xs text-stone-400 flex items-center justify-between">
-            <span>Click any pin to inspect verified profile, opening hours, products & WhatsApp link.</span>
-            <span className="font-mono text-[11px] text-emerald-400">PostGIS ST_Distance</span>
+          {/* Right 5 cols: Sticky interactive Real Leaflet Map */}
+          <div className="lg:col-span-5 sticky top-24 space-y-2">
+            <div className="flex items-center justify-between text-xs text-stone-600 px-1">
+              <span className="font-semibold">Interactive Map</span>
+              <span className="font-mono text-emerald-700 text-[11px]">{filtered.length} pins</span>
+            </div>
+
+            <DiscoveryMapView
+              businesses={filtered}
+              center={currentLocation.coordinates}
+              heightClass="h-[450px]"
+              onSelectBusiness={onSelectBusiness}
+              onCall={onCall}
+              onDirections={onDirections}
+              showRadiusCircle={true}
+              radiusKm={10}
+            />
           </div>
         </div>
       )}
 
-      {/* Business Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((biz) => (
-          <BusinessCard
-            key={biz.id}
-            business={biz}
-            onSelect={onSelectBusiness}
-            onCall={onCall}
-            onWhatsApp={onWhatsApp}
-            onDirections={onDirections}
-            isSaved={savedBusinessIds.includes(biz.id)}
-            onToggleSave={onToggleSave}
-          />
-        ))}
-      </div>
+      {/* STANDARD GRID VIEW */}
+      {viewMode === 'list' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map((biz) => (
+            <BusinessCard
+              key={biz.id}
+              business={biz}
+              onSelect={onSelectBusiness}
+              onCall={onCall}
+              onWhatsApp={onWhatsApp}
+              onDirections={onDirections}
+              isSaved={savedBusinessIds.includes(biz.id)}
+              onToggleSave={onToggleSave}
+            />
+          ))}
+        </div>
+      )}
 
       {filtered.length === 0 && (
         <div className="p-12 text-center text-stone-500 bg-white rounded-2xl border border-stone-200">

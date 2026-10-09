@@ -12,6 +12,8 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
+  Map as MapIcon,
+  LayoutGrid,
   Utensils,
   ShoppingBag,
   Wrench,
@@ -28,6 +30,7 @@ import {
 import { Business, Category, LocationArea, Professional } from '../../types';
 import { CATEGORIES, heroMarketplaceImg } from '../../data/mockData';
 import { BusinessCard } from '../business/BusinessCard';
+import { DiscoveryMapView } from '../common/DiscoveryMapView';
 
 interface HomeScreenProps {
   businesses: Business[];
@@ -78,6 +81,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateTab,
 }) => {
   const [nearbyRadius, setNearbyRadius] = useState<number>(5);
+  const [nearbyViewMode, setNearbyViewMode] = useState<'cards' | 'map'>('cards');
 
   // Filter nearby based on distance slider
   const nearbyBusinesses = businesses
@@ -109,13 +113,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-16 sm:py-20 flex flex-col items-center text-center">
-          {/* Location Badge (PRD Section 5: Primary Element 📍 Kitwe, Zambia) */}
+          {/* Location Badge (Hierarchical Dynamic Multi-Market Location Display) */}
           <button
             onClick={onOpenLocationModal}
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-stone-800/90 hover:bg-stone-700/90 text-stone-200 border border-stone-700 text-xs font-medium transition-colors mb-6 shadow-sm group"
           >
             <MapPin className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
-            <span>📍 {currentLocation.name}, Zambia</span>
+            <span>📍 {currentLocation.name}, {currentLocation.country || 'Zambia'}</span>
             <span className="text-stone-400 text-[11px]">· Change</span>
           </button>
 
@@ -141,25 +145,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   What are you looking for?
                 </div>
                 <div className="text-stone-400 text-[11px] sm:text-xs truncate">
-                  Try "Hardware stores in Kitwe", "Plumbers near me", "Car repair", "Shoprite"
+                  Try "Restaurants near me", "Phone repair shops in Kitwe", "Plumbers in Lusaka", "Hotels in Livingstone"
                 </div>
               </div>
               <button
                 type="button"
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shrink-0 transition-colors shadow-2xs"
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shrink-0 transition-colors shadow-2xs cursor-pointer"
               >
                 Search
               </button>
             </div>
 
-            {/* Natural language examples matching PRD */}
+            {/* Natural language examples matching Master Prompt */}
             <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-xs text-stone-300">
               <span className="text-stone-400 font-medium">Quick searches:</span>
-              {['Restaurants', 'Mechanics', 'Hardware stores', 'Plumbers', 'Hotels', 'Lawyers'].map((term) => (
+              {[
+                'Restaurants near me',
+                'Phone repair shops in Kitwe',
+                'Plumbers in Lusaka',
+                'Pharmacies near me',
+                'Hotels in Livingstone',
+                'Electricians in Ndola',
+                'Computer shops near me'
+              ].map((term) => (
                 <button
                   key={term}
                   onClick={onOpenSearch}
-                  className="hover:text-emerald-400 transition-colors underline decoration-stone-500 underline-offset-4"
+                  className="hover:text-emerald-400 transition-colors underline decoration-stone-500 underline-offset-4 cursor-pointer"
                 >
                   {term}
                 </button>
@@ -213,37 +225,37 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* 3. PROMOTIONS / WEEKEND DEALS (PRD Section 5 & 13) */}
       {activePromotions.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-white border-2 border-amber-300 rounded-3xl p-6 sm:p-8 relative overflow-hidden">
+          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl p-6 sm:p-7 relative">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1">
-                    <Flame className="w-4 h-4 text-amber-600" />
-                    Featured Weekend Deal
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                    <Flame className="w-3.5 h-3.5 text-amber-600" />
+                    Featured Commercial Offer
                   </span>
-                  <span className="text-stone-300">·</span>
-                  <span className="text-xs text-stone-500">Kitwe Metro Offer</span>
+                  <span className="text-stone-300 dark:text-stone-700">·</span>
+                  <span className="text-stone-500 dark:text-stone-400">Kitwe Metro Market</span>
                 </div>
-                <h3 className="text-xl sm:text-3xl font-bold font-display text-stone-900 tracking-tight">
+                <h3 className="text-xl sm:text-2xl font-bold font-display text-stone-900 dark:text-stone-100 tracking-tight">
                   {activePromotions[0].title}
                 </h3>
-                <p className="text-sm font-semibold text-stone-700 max-w-2xl">
+                <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 max-w-2xl leading-relaxed">
                   {activePromotions[0].tagline}
                 </p>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-stone-600 pt-1">
-                  <span>Merchant: <strong className="text-stone-900">{activePromotions[0].businessName}</strong></span>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500 dark:text-stone-400 pt-1">
+                  <span>Merchant: <strong className="text-stone-800 dark:text-stone-200">{activePromotions[0].businessName}</strong></span>
                   <span>·</span>
-                  <span>Valid: <strong>{activePromotions[0].validFrom} – {activePromotions[0].validUntil}</strong></span>
+                  <span>Valid: {activePromotions[0].validFrom} – {activePromotions[0].validUntil}</span>
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row items-center gap-4 shrink-0">
-                <div className="text-center p-4 bg-amber-500 text-white rounded-2xl shadow-sm">
-                  <div className="text-3xl font-black font-mono leading-none">
-                    {activePromotions[0].discountPercentage}%
+                <div className="text-center px-4 py-2.5 bg-stone-900 dark:bg-stone-800 text-white rounded-xl border border-stone-800">
+                  <div className="text-2xl font-black font-mono leading-none text-amber-400">
+                    {activePromotions[0].discountPercentage}% OFF
                   </div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider mt-0.5">
-                    DISCOUNT
+                  <div className="text-[10px] font-mono text-stone-400 uppercase tracking-wider mt-0.5">
+                    Verified Deal
                   </div>
                 </div>
 
@@ -252,7 +264,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     const biz = businesses.find((b) => b.id === activePromotions[0].businessId);
                     if (biz) onSelectBusiness(biz);
                   }}
-                  className="px-5 py-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-semibold transition-colors shadow-2xs whitespace-nowrap"
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition-colors shadow-2xs whitespace-nowrap cursor-pointer"
                 >
                   View Promotion Details →
                 </button>
@@ -279,28 +291,70 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </p>
           </div>
 
-          {/* Distance Filter Buttons (Interactive Filter Tab styling per Skill) */}
-          <div className="flex items-center gap-1 p-1 bg-stone-100 rounded-xl">
-            {[2, 5, 10, 25].map((dist) => (
+          {/* Distance Filter Buttons & View Mode Switcher */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl max-w-full overflow-x-auto no-scrollbar shrink-0">
+              {[2, 5, 10, 25].map((dist) => (
+                <button
+                  key={dist}
+                  onClick={() => setNearbyRadius(dist)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                    nearbyRadius === dist
+                      ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-xs font-semibold'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  }`}
+                >
+                  Within {dist} km
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl shrink-0">
               <button
-                key={dist}
-                onClick={() => setNearbyRadius(dist)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                  nearbyRadius === dist
-                    ? 'bg-white text-stone-900 shadow-xs font-semibold'
-                    : 'text-stone-600 hover:text-stone-900'
+                onClick={() => setNearbyViewMode('cards')}
+                className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
+                  nearbyViewMode === 'cards'
+                    ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-xs font-semibold'
+                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
                 }`}
+                title="View grid cards"
               >
-                Within {dist} km
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Cards</span>
               </button>
-            ))}
+              <button
+                onClick={() => setNearbyViewMode('map')}
+                className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
+                  nearbyViewMode === 'map'
+                    ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-xs font-semibold'
+                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                }`}
+                title="View on interactive Leaflet map"
+              >
+                <MapIcon className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Map View</span>
+              </button>
+            </div>
           </div>
         </div>
 
         {nearbyBusinesses.length === 0 ? (
-          <div className="p-8 text-center text-stone-500 bg-white rounded-2xl border border-stone-200">
+          <div className="p-8 text-center text-stone-500 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
             <p className="text-sm font-semibold">No businesses found within {nearbyRadius} km.</p>
             <p className="text-xs text-stone-400 mt-1">Try expanding your radius to 10 km or 25 km.</p>
+          </div>
+        ) : nearbyViewMode === 'map' ? (
+          <div className="space-y-4">
+            <DiscoveryMapView
+              businesses={nearbyBusinesses}
+              center={currentLocation.coordinates}
+              heightClass="h-[440px] sm:h-[500px]"
+              onSelectBusiness={onSelectBusiness}
+              onCall={onCall}
+              onDirections={onDirections}
+              showRadiusCircle={true}
+              radiusKm={nearbyRadius}
+            />
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -356,29 +410,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* 5. MERCHANT ONBOARDING CALLOUT */}
+      {/* 5. VERIFIED COMMERCIAL DIRECTORY CALLOUT */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="bg-gradient-to-r from-emerald-950 via-stone-900 to-stone-950 rounded-3xl p-6 sm:p-10 border border-emerald-800/40 text-white flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono uppercase text-emerald-400 bg-emerald-950 px-2.5 py-0.5 rounded border border-emerald-800 font-semibold">
-                For Zambian Merchants & Service Providers
+                Open Directory Access · No Registration Required
               </span>
             </div>
             <h3 className="text-xl sm:text-2xl font-bold font-display text-white">
-              Grow Your Business with Bwana Verified Listing
+              Instant Access to Verified Local Businesses
             </h3>
             <p className="text-xs sm:text-sm text-stone-300 max-w-2xl leading-relaxed">
-              Register your company, verify your PACRA & ZRA TPIN credentials, and earn the official green Verified Badge (✓) to receive direct customer calls and WhatsApp quotes.
+              Explore certified enterprises across Zambia with verified PACRA & ZRA TPIN credentials. View catalog pricing, call phone lines directly, and message on WhatsApp with zero sign-up friction.
             </p>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
             <button
-              onClick={() => onNavigateTab('register_business')}
+              onClick={() => onNavigateTab('businesses')}
               className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
             >
-              <span>Register Your Business Now</span>
+              <span>Explore Verified Businesses</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

@@ -3,17 +3,95 @@
  * Version 1.0 (Zambia & Southern Africa)
  */
 
-export type UserRole = 'admin' | 'business' | 'user' | 'customer' | 'business_owner';
+/**
+ * Platform User Roles:
+ * A. Public User (unauthenticated visitor)
+ * B. Registered User (customer / registered citizen)
+ * C. Business Owner (merchant owner with full business control)
+ * D. Business Staff (manager / staff member with configurable permissions)
+ * E. Moderator (content dispute & verification compliance officer)
+ * F. Administrator (super admin with full platform, system audit & tenant control)
+ */
+export type UserRole =
+  | 'public_user'
+  | 'registered_user'
+  | 'user'
+  | 'customer'
+  | 'business_owner'
+  | 'business'
+  | 'business_staff'
+  | 'moderator'
+  | 'admin'
+  | 'bwana_staff';
+
+export type StaffPermissionTier = 'owner' | 'manager' | 'staff';
+
+export interface StaffPermissionConfig {
+  canEditProfile: boolean;
+  canManageContent: boolean; // products, services, photos
+  canPublishPromotions: boolean;
+  canRespondToReviews: boolean;
+  canViewAnalytics: boolean;
+  canManageStaff: boolean;
+}
+
+export interface UserCapabilities {
+  // Public capabilities (Available to all, no registration required)
+  searchBusinesses: boolean;
+  browseCategories: boolean;
+  viewBusinessProfiles: boolean;
+  viewLocationsAndHours: boolean;
+  viewRatingsAndReviews: boolean;
+  viewPhotosAndContact: boolean;
+  useMapDiscovery: boolean;
+  useListDiscovery: boolean;
+
+  // Registered user capabilities
+  createAccountAndLogin: boolean;
+  saveAndFavorite: boolean;
+  writeReviewsAndRatings: boolean;
+  uploadReviewPhotos: boolean;
+  reportIncorrectInformation: boolean;
+  shareListings: boolean;
+  managePersonalProfile: boolean;
+  viewSearchHistory: boolean;
+  receiveNotifications: boolean;
+
+  // Business capabilities
+  registerBusiness: boolean;
+  claimListing: boolean;
+  manageBusinessProfile: boolean;
+  manageProductsAndServices: boolean;
+  publishPromotions: boolean;
+  respondToReviews: boolean;
+  viewBusinessAnalytics: boolean;
+  manageEmployees: boolean;
+
+  // Moderator capabilities
+  reviewReportedContent: boolean;
+  suspendInappropriateListings: boolean;
+  handleDisputes: boolean;
+  reviewVerificationRequests: boolean;
+
+  // Administrator capabilities
+  fullPlatformAdministration: boolean;
+  manageUsersAndTenants: boolean;
+  manageCategoriesAndLocations: boolean;
+  managePlatformConfig: boolean;
+  auditSystemActivity: boolean;
+}
 
 export interface SystemUser {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'business' | 'user';
+  role: UserRole;
   roleLabel: string;
   description: string;
   avatarColor: string;
   badge: string;
+  staffTier?: StaffPermissionTier;
+  permissions?: StaffPermissionConfig;
   businessId?: string;
   businessName?: string;
 }
@@ -27,12 +105,67 @@ export interface LocationCoordinates {
   longitude: number;
 }
 
+/**
+ * Hierarchical Geographic Data Model
+ * Country → Province/Region → District → City/Town → Area/Neighborhood → Coordinates
+ * Enables multi-market expansion across Africa (Zambia, Zimbabwe, Botswana, Malawi, Namibia, Mozambique, South Africa, Tanzania, etc.)
+ */
+export interface Country {
+  code: string; // ISO 3166-1 alpha-2 (e.g. 'ZM', 'ZW', 'BW')
+  name: string; // e.g. 'Zambia'
+  currency: string; // e.g. 'ZMW'
+  currencySymbol: string;
+  phonePrefix: string; // e.g. '+260'
+  flagEmoji: string;
+  isActive: boolean;
+}
+
+export interface ProvinceRegion {
+  id: string;
+  countryCode: string;
+  name: string; // e.g. 'Copperbelt', 'Lusaka', 'Southern'
+}
+
+export interface District {
+  id: string;
+  provinceId: string;
+  countryCode: string;
+  name: string; // e.g. 'Kitwe', 'Ndola', 'Lusaka'
+}
+
+export interface CityTown {
+  id: string;
+  districtId: string;
+  provinceId: string;
+  countryCode: string;
+  name: string; // e.g. 'Kitwe', 'Lusaka', 'Ndola', 'Livingstone'
+  isMajorCity?: boolean;
+  coordinates: LocationCoordinates;
+}
+
+export interface AreaNeighborhood {
+  id: string;
+  cityId: string;
+  districtId: string;
+  provinceId: string;
+  countryCode: string;
+  name: string; // e.g. 'Parklands', 'Riverside', 'Kabulonga', 'Town Centre'
+  coordinates: LocationCoordinates;
+}
+
 export interface LocationArea {
   id: string;
   name: string;
-  district: string;
-  province: string;
+  countryCode: string;
   country: string;
+  province: string;
+  provinceId?: string;
+  district: string;
+  districtId?: string;
+  city: string;
+  cityId?: string;
+  area?: string;
+  areaId?: string;
   coordinates: LocationCoordinates;
   isPopular?: boolean;
 }
@@ -96,6 +229,8 @@ export interface BusinessReview {
   userLocation?: string;
   rating: number; // 1-5
   comment: string;
+  photoUrl?: string;
+  photos?: string[];
   createdAt: string;
   helpfulCount: number;
   verifiedVisit?: boolean;
@@ -114,6 +249,13 @@ export interface BusinessOpeningHours {
   isClosed?: boolean;
 }
 
+export interface BusinessSocialLinks {
+  facebook?: string;
+  instagram?: string;
+  linkedin?: string;
+  twitter?: string;
+}
+
 export interface Business {
   id: string;
   name: string;
@@ -130,9 +272,12 @@ export interface Business {
   email?: string;
   website?: string;
   address: string;
-  area: string;
-  city: string;
+  countryCode?: string; // 'ZM', 'ZW', 'BW', etc.
+  country?: string; // 'Zambia'
   province: string;
+  district?: string;
+  city: string;
+  area: string;
   coordinates: LocationCoordinates;
   distanceKm?: number;
   coverImage: string;
@@ -145,6 +290,9 @@ export interface Business {
   services?: BusinessService[];
   promotions?: BusinessPromotion[];
   createdYear?: number;
+  tags?: string[];
+  attributes?: string[];
+  socialLinks?: BusinessSocialLinks;
 }
 
 export interface Professional {

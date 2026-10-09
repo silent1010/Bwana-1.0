@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldAlert, ShieldCheck, Store } from 'lucide-react';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
 import { HomeScreen } from './components/discovery/HomeScreen';
 import { SearchResults } from './components/discovery/SearchResults';
+import { SavedFavoritesView } from './components/discovery/SavedFavoritesView';
 import { BusinessProfileModal } from './components/business/BusinessProfileModal';
 import { BusinessDashboard } from './components/business/BusinessDashboard';
 import { ClaimBusinessModal } from './components/business/ClaimBusinessModal';
@@ -21,7 +22,12 @@ import { EngineeringSpec } from './components/architecture/EngineeringSpec';
 import { LocationPickerModal } from './components/common/LocationPickerModal';
 import { SearchEngineModal } from './components/common/SearchEngineModal';
 import { AuthModal } from './components/auth/AuthModal';
+import { BusinessLoginModal } from './components/auth/BusinessLoginModal';
+import { AdminGateModal } from './components/auth/AdminGateModal';
 import { NotificationsDrawer } from './components/common/NotificationsDrawer';
+import { ApiConsoleModal } from './components/common/ApiConsoleModal';
+import { SidebarDrawer } from './components/layout/SidebarDrawer';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 import {
   Business,
@@ -52,14 +58,33 @@ import {
   calculateDistanceKm,
 } from './data/mockData';
 
+import {
+  subscribeToBusinesses,
+  subscribeToReviews,
+  subscribeToVerifications,
+  subscribeToAuditLogs,
+  subscribeToNotifications,
+  createBusinessInFirestore,
+  updateBusinessInFirestore,
+  createReviewInFirestore,
+  updateReviewInFirestore,
+  createVerificationInFirestore,
+  updateVerificationStatusInFirestore,
+  createAuditLogInFirestore,
+  createNotificationInFirestore,
+  markNotificationReadInFirestore,
+} from './services/firebase';
+
 export default function App() {
   // Navigation & Role State (3 Isolated Security Roles: admin, business, user)
   const [currentTab, setCurrentTab] = useState<string>('discover');
   const [currentRole, setCurrentRole] = useState<UserRole>('user');
   const [currentLocation, setCurrentLocation] = useState<LocationArea>(LOCATIONS[0]); // Kitwe default
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [isLiveConnected, setIsLiveConnected] = useState<boolean>(true);
 
-  // Core Data State
+  // Core Data State (Live synchronized with Firestore)
   const [businesses, setBusinesses] = useState<Business[]>(INITIAL_BUSINESSES);
   const [reviews, setReviews] = useState<BusinessReview[]>(INITIAL_REVIEWS);
   const [verifications, setVerifications] = useState<VerificationRequest[]>(INITIAL_VERIFICATIONS);
@@ -71,17 +96,63 @@ export default function App() {
   const [savedBusinessIds, setSavedBusinessIds] = useState<string[]>(['biz-abc-hardware']);
 
   // Modals & Drawers State
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [businessLoginModalOpen, setBusinessLoginModalOpen] = useState(false);
+  const [adminGateModalOpen, setAdminGateModalOpen] = useState(false);
+  const [apiConsoleModalOpen, setApiConsoleModalOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [claimModalBiz, setClaimModalBiz] = useState<Business | null>(null);
 
-  // Authentication state (Preloaded as User Side: Michael Mumba)
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string>('m.mumba8@gmail.com');
-  const [currentUserName, setCurrentUserName] = useState<string>('Michael Mumba');
+  // Real-Time Firestore Synchronization
+  useEffect(() => {
+    const unsubBiz = subscribeToBusinesses((liveBiz) => {
+      setBusinesses(liveBiz);
+      setIsLiveConnected(true);
+    });
+
+    const unsubRev = subscribeToReviews((liveReviews) => {
+      setReviews(liveReviews);
+    });
+
+    const unsubVer = subscribeToVerifications((liveVerifications) => {
+      setVerifications(liveVerifications);
+    });
+
+    const unsubLogs = subscribeToAuditLogs((liveLogs) => {
+      setAuditLogs(liveLogs);
+    });
+
+    const unsubNotifs = subscribeToNotifications((liveNotifs) => {
+      setNotifications(liveNotifs);
+    });
+
+    return () => {
+      if (typeof unsubBiz === 'function') unsubBiz();
+      if (typeof unsubRev === 'function') unsubRev();
+      if (typeof unsubVer === 'function') unsubVer();
+      if (typeof unsubLogs === 'function') unsubLogs();
+      if (typeof unsubNotifs === 'function') unsubNotifs();
+    };
+  }, []);
+
+  // Sync selectedBusiness with live businesses if modified in Firestore
+  useEffect(() => {
+    if (selectedBusiness) {
+      const found = businesses.find((b) => b.id === selectedBusiness.id);
+      if (found && JSON.stringify(found) !== JSON.stringify(selectedBusiness)) {
+        setSelectedBusiness(found);
+      }
+    }
+  }, [businesses, selectedBusiness]);
+
+  // Authentication state (Default unauthenticated for public viewing)
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
+  const [currentUserName, setCurrentUserName] = useState<string>('');
 
   // Security Role Switcher between the 3 users
   const handleSwitchUser = (u: SystemUser) => {
@@ -152,14 +223,12 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleRegisterBusiness = (newBusiness: Business, newVerification: VerificationRequest) => {
-    // Add business (initial status unverified, pending statutory review)
+  const handleRegisterBusiness = async (newBusiness: Business, newVerification: VerificationRequest) => {
+    // Optimistic UI updates
     setBusinesses((prev) => [newBusiness, ...prev]);
-
-    // Add verification request to administrative queue
     setVerifications((prev) => [newVerification, ...prev]);
 
-    // Add immutable compliance audit log entry
+    // Add compliance audit log entry
     const newLog: AuditLogEntry = {
       id: `aud-${Date.now()}`,
       timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
@@ -195,9 +264,22 @@ export default function App() {
       linkAction: newBusiness.id,
     };
     setNotifications((prev) => [adminNotif, ownerNotif, ...prev]);
+
+    // Live Firestore Persistence (Real-Time Database)
+    try {
+      await createBusinessInFirestore(newBusiness);
+      await createVerificationInFirestore(newVerification);
+      await createAuditLogInFirestore(newLog);
+      await createNotificationInFirestore(ownerNotif);
+      await createNotificationInFirestore(adminNotif);
+    } catch (err) {
+      console.error('Failed to persist business registration to Firestore:', err);
+    }
   };
 
-  const handleApproveVerification = (requestId: string, businessId: string) => {
+  const handleApproveVerification = async (requestId: string, businessId: string) => {
+    const approvedBiz = businesses.find((b) => b.id === businessId);
+
     setBusinesses((prev) =>
       prev.map((b) =>
         b.id === businessId ? { ...b, verificationStatus: 'verified' } : b
@@ -217,12 +299,10 @@ export default function App() {
       )
     );
 
-    const approvedBiz = businesses.find((b) => b.id === businessId);
-
     const newLog: AuditLogEntry = {
       id: `aud-${Date.now()}`,
       timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      actor: 'admin@bwana.africa',
+      actor: currentUserEmail || 'admin@bwana.africa',
       role: 'admin',
       action: 'VERIFICATION_APPROVED',
       targetEntity: 'Business',
@@ -244,9 +324,20 @@ export default function App() {
       linkAction: businessId,
     };
     setNotifications((prev) => [newNotif, ...prev]);
+
+    // Live Firestore Persistence
+    try {
+      await updateVerificationStatusInFirestore(requestId, 'approved', businessId);
+      await createAuditLogInFirestore(newLog);
+      await createNotificationInFirestore(newNotif);
+    } catch (err) {
+      console.error('Failed to approve verification in Firestore:', err);
+    }
   };
 
-  const handleRejectVerification = (requestId: string, reason: string) => {
+  const handleRejectVerification = async (requestId: string, reason: string) => {
+    const req = verifications.find((v) => v.id === requestId);
+
     setVerifications((prev) =>
       prev.map((v) =>
         v.id === requestId
@@ -261,7 +352,6 @@ export default function App() {
       )
     );
 
-    const req = verifications.find((v) => v.id === requestId);
     if (req) {
       setBusinesses((prev) =>
         prev.map((b) =>
@@ -273,7 +363,7 @@ export default function App() {
     const newLog: AuditLogEntry = {
       id: `aud-${Date.now()}`,
       timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      actor: 'admin@bwana.africa',
+      actor: currentUserEmail || 'admin@bwana.africa',
       role: 'admin',
       action: 'VERIFICATION_REJECTED',
       targetEntity: 'Business',
@@ -293,9 +383,20 @@ export default function App() {
       iconType: 'verification',
     };
     setNotifications((prev) => [newNotif, ...prev]);
+
+    // Live Firestore Persistence
+    try {
+      if (req?.businessId) {
+        await updateVerificationStatusInFirestore(requestId, 'rejected', req.businessId);
+      }
+      await createAuditLogInFirestore(newLog);
+      await createNotificationInFirestore(newNotif);
+    } catch (err) {
+      console.error('Failed to reject verification in Firestore:', err);
+    }
   };
 
-  const handleClaimSubmit = (claimData: {
+  const handleClaimSubmit = async (claimData: {
     businessId: string;
     businessName: string;
     applicantName: string;
@@ -339,21 +440,37 @@ export default function App() {
       iconType: 'verification',
       linkAction: claimData.businessId,
     };
-    setNotifications([newNotif, ...notifications]);
+    setNotifications((prev) => [newNotif, ...prev]);
+
+    // Live Firestore Persistence
+    try {
+      await updateBusinessInFirestore(claimData.businessId, { verificationStatus: 'claimed' });
+      await createVerificationInFirestore(claimVerificationReq);
+      await createNotificationInFirestore(newNotif);
+    } catch (err) {
+      console.error('Failed to persist business claim to Firestore:', err);
+    }
   };
 
-  const handleUpdateBusiness = (updated: Business) => {
+  const handleUpdateBusiness = async (updated: Business) => {
     setBusinesses((prev) =>
       prev.map((b) => (b.id === updated.id ? updated : b))
     );
+    try {
+      await updateBusinessInFirestore(updated.id, updated);
+    } catch (err) {
+      console.error('Failed to update business in Firestore:', err);
+    }
   };
 
-  const handleAddReview = (
+  const handleAddReview = async (
     businessId: string,
     rating: number,
     comment: string,
     tags: string[],
-    verifiedVisit: boolean
+    verifiedVisit: boolean,
+    photoUrl?: string,
+    photos?: string[]
   ) => {
     const authorName = currentUserName || (currentUserEmail ? currentUserEmail.split('@')[0] : 'Verified Customer');
     const newRev: BusinessReview = {
@@ -364,6 +481,8 @@ export default function App() {
       rating,
       comment,
       tags,
+      photoUrl,
+      photos,
       createdAt: 'Just now',
       helpfulCount: 0,
       verifiedVisit,
@@ -402,7 +521,7 @@ export default function App() {
 
     const targetBiz = businesses.find((b) => b.id === businessId);
 
-    // Add immutable compliance & activity audit log entry
+    // Add compliance & activity audit log entry
     const newLog: AuditLogEntry = {
       id: `aud-${Date.now()}`,
       timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
@@ -428,31 +547,49 @@ export default function App() {
       linkAction: businessId,
     };
     setNotifications((prev) => [reviewNotif, ...prev]);
+
+    // Live Firestore Persistence
+    try {
+      await createReviewInFirestore(newRev);
+      await createAuditLogInFirestore(newLog);
+      await createNotificationInFirestore(reviewNotif);
+    } catch (err) {
+      console.error('Failed to create review in Firestore:', err);
+    }
   };
 
-  const handleHelpfulVote = (reviewId: string) => {
+  const handleHelpfulVote = async (reviewId: string) => {
+    const target = reviews.find((r) => r.id === reviewId);
+    const newCount = (target?.helpfulCount || 0) + 1;
     setReviews((prev) =>
       prev.map((r) =>
-        r.id === reviewId ? { ...r, helpfulCount: (r.helpfulCount || 0) + 1 } : r
+        r.id === reviewId ? { ...r, helpfulCount: newCount } : r
       )
     );
+    try {
+      await updateReviewInFirestore(reviewId, { helpfulCount: newCount });
+    } catch (err) {
+      console.error('Failed to update helpful vote in Firestore:', err);
+    }
   };
 
-  const handleRespondToReview = (
+  const handleRespondToReview = async (
     reviewId: string,
     responseComment: string,
     responderName: string
   ) => {
+    const resObj = {
+      comment: responseComment,
+      respondedAt: 'Just now',
+      responderName,
+    };
+
     setReviews((prev) =>
       prev.map((r) =>
         r.id === reviewId
           ? {
               ...r,
-              response: {
-                comment: responseComment,
-                respondedAt: 'Just now',
-                responderName,
-              },
+              response: resObj,
             }
           : r
       )
@@ -473,6 +610,13 @@ export default function App() {
       linkAction: targetRev?.businessId,
     };
     setNotifications((prev) => [replyNotif, ...prev]);
+
+    try {
+      await updateReviewInFirestore(reviewId, { response: resObj });
+      await createNotificationInFirestore(replyNotif);
+    } catch (err) {
+      console.error('Failed to respond to review in Firestore:', err);
+    }
   };
 
   // Canonical ABC Hardware business for owner dashboard view
@@ -482,7 +626,7 @@ export default function App() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50 text-stone-900 font-sans selection:bg-emerald-600 selection:text-white">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden flex flex-col bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-sans selection:bg-emerald-600 selection:text-white transition-colors duration-200">
       {/* 1. Header Navigation Contract */}
       <Navbar
         currentTab={currentTab}
@@ -490,15 +634,18 @@ export default function App() {
         currentRole={currentRole}
         currentLocation={currentLocation}
         onOpenLocationModal={() => setLocationModalOpen(true)}
+        onOpenSidebar={() => setSidebarOpen(true)}
         onOpenSearch={() => setSearchModalOpen(true)}
         onOpenAuth={() => setAuthModalOpen(true)}
+        onOpenApiConsole={() => setApiConsoleModalOpen(true)}
+        onOpenBusinessLogin={() => setBusinessLoginModalOpen(true)}
+        onOpenAdminGate={() => setAdminGateModalOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         unreadCount={unreadCount}
         isAuthenticated={isAuthenticated}
-        currentUserEmail={currentUserEmail}
         currentUserName={currentUserName}
         onSignOut={handleSignOut}
-        onSwitchUser={handleSwitchUser}
+        savedCount={savedBusinessIds.length}
       />
 
       {/* 2. Main Application Body Router */}
@@ -526,6 +673,8 @@ export default function App() {
             currentLocation={currentLocation}
             selectedCategory={selectedCategory}
             onSelectCategory={setSelectedCategory}
+            selectedTag={selectedTag}
+            onSelectTag={setSelectedTag}
             onSelectBusiness={(biz) => setSelectedBusiness(biz)}
             onCall={handleCall}
             onWhatsApp={handleWhatsApp}
@@ -555,6 +704,19 @@ export default function App() {
 
         {currentTab === 'opportunities' && (
           <OpportunitiesList opportunities={opportunities} />
+        )}
+
+        {currentTab === 'favorites' && (
+          <SavedFavoritesView
+            businesses={businesses}
+            savedBusinessIds={savedBusinessIds}
+            onToggleSave={handleToggleSave}
+            onSelectBusiness={(biz) => setSelectedBusiness(biz)}
+            onCall={handleCall}
+            onWhatsApp={handleWhatsApp}
+            onDirections={handleDirections}
+            onNavigateToDiscover={() => setCurrentTab('discover')}
+          />
         )}
 
         {currentTab === 'business_dashboard' && (
@@ -604,7 +766,11 @@ export default function App() {
       </main>
 
       {/* 3. Footer */}
-      <Footer onSelectTab={(tab) => setCurrentTab(tab)} />
+      <Footer
+        onSelectTab={(tab) => setCurrentTab(tab)}
+        onOpenAdminGate={() => setAdminGateModalOpen(true)}
+        onOpenBusinessLogin={() => setBusinessLoginModalOpen(true)}
+      />
 
       {/* 4. Global Modals */}
       <LocationPickerModal
@@ -649,6 +815,13 @@ export default function App() {
           role: currentRole,
         }}
         onRequireLogin={() => setAuthModalOpen(true)}
+        allBusinesses={businesses}
+        onSelectBusiness={(biz) => setSelectedBusiness(biz)}
+        onFilterDirectoryByTag={(tag) => {
+          setSelectedBusiness(null);
+          setSelectedTag(tag);
+          setCurrentTab('businesses');
+        }}
       />
 
       <ClaimBusinessModal
@@ -666,7 +839,34 @@ export default function App() {
           setCurrentUserEmail(email);
           setCurrentRole(role);
           setCurrentUserName(email.includes('mumba') ? 'Michael Mumba' : email.split('@')[0]);
-          if (role === 'business_owner') setCurrentTab('business_dashboard');
+          if (role === 'business_owner' || role === 'business') setCurrentTab('business_dashboard');
+          if (role === 'admin') setCurrentTab('admin_dashboard');
+        }}
+      />
+
+      {/* Dedicated Business Merchant Login Modal */}
+      <BusinessLoginModal
+        isOpen={businessLoginModalOpen}
+        onClose={() => setBusinessLoginModalOpen(false)}
+        onLoginSuccess={(email, role, name) => {
+          setIsAuthenticated(true);
+          setCurrentUserEmail(email);
+          setCurrentRole(role);
+          setCurrentUserName(name || 'Business Owner');
+          setCurrentTab('business_dashboard');
+        }}
+      />
+
+      {/* Restricted Admin Clearance Gate */}
+      <AdminGateModal
+        isOpen={adminGateModalOpen}
+        onClose={() => setAdminGateModalOpen(false)}
+        onAdminAuthSuccess={(email, role, name) => {
+          setIsAuthenticated(true);
+          setCurrentUserEmail(email);
+          setCurrentRole(role);
+          setCurrentUserName(name || 'Platform Administrator');
+          setCurrentTab('admin_dashboard');
         }}
       />
 
@@ -683,6 +883,33 @@ export default function App() {
             if (matchedBiz) setSelectedBusiness(matchedBiz);
           }
         }}
+      />
+
+      {/* Interactive REST API v1 Console */}
+      <ApiConsoleModal
+        isOpen={apiConsoleModalOpen}
+        onClose={() => setApiConsoleModalOpen(false)}
+      />
+
+      {/* Main Responsive Sidebar Drawer */}
+      <SidebarDrawer
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        currentTab={currentTab}
+        setCurrentTab={setCurrentTab}
+        currentRole={currentRole}
+        currentLocation={currentLocation}
+        onOpenLocationModal={() => setLocationModalOpen(true)}
+        onOpenAuth={() => setAuthModalOpen(true)}
+        onOpenApiConsole={() => setApiConsoleModalOpen(true)}
+        onOpenBusinessLogin={() => setBusinessLoginModalOpen(true)}
+        onOpenAdminGate={() => setAdminGateModalOpen(true)}
+        onOpenNotifications={() => setNotificationsOpen(true)}
+        unreadCount={unreadCount}
+        isAuthenticated={isAuthenticated}
+        currentUserName={currentUserName}
+        onSignOut={handleSignOut}
+        savedCount={savedBusinessIds.length}
       />
     </div>
   );

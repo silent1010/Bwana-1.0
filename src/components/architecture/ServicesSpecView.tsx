@@ -15,11 +15,17 @@ import {
   CheckCircle,
   FileCode,
   Copy,
-  Check
+  Check,
+  BookOpen,
+  Milestone,
+  CheckSquare,
+  Rocket,
+  Globe2,
+  Smartphone
 } from 'lucide-react';
 
 export const ServicesSpecView: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<'gateway' | 'discovery' | 'identity' | 'business' | 'protocols' | 'flow'>('gateway');
+  const [activeSubTab, setActiveSubTab] = useState<'master_prompt' | 'long_term_vision' | 'gateway' | 'discovery' | 'identity' | 'business' | 'protocols' | 'flow'>('long_term_vision');
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
   const copyCode = (code: string, id: string) => {
@@ -320,6 +326,30 @@ message PublishPromotionResponse {
         {/* Sub-Navigation Buttons */}
         <div className="flex items-center gap-1.5 border-b border-stone-200 pb-3 pt-2 overflow-x-auto no-scrollbar text-xs">
           <button
+            onClick={() => setActiveSubTab('long_term_vision')}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+              activeSubTab === 'long_term_vision'
+                ? 'bg-emerald-600 text-white shadow-2xs'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+            }`}
+          >
+            <Rocket className="w-3.5 h-3.5 text-emerald-200" />
+            <span>20–30+ Year Vision & Monolith-to-Microservices</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('master_prompt')}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+              activeSubTab === 'master_prompt'
+                ? 'bg-stone-900 text-white shadow-2xs'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Master Architecture (44 Sections)</span>
+          </button>
+
+          <button
             onClick={() => setActiveSubTab('gateway')}
             className={`px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
               activeSubTab === 'gateway'
@@ -392,6 +422,439 @@ message PublishPromotionResponse {
           </button>
         </div>
       </div>
+
+      {/* 20-30+ YEAR PLATFORM VISION & ARCHITECTURAL FOUNDATION */}
+      {activeSubTab === 'long_term_vision' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Executive Vision Banner */}
+          <div className="p-6 bg-gradient-to-br from-stone-900 via-stone-950 to-stone-900 border border-stone-800 text-white rounded-3xl shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5">
+                  <Rocket className="w-3.5 h-3.5" />
+                  LONG-TERM PLATFORM CHARTER
+                </span>
+                <span className="text-xs text-stone-400">·</span>
+                <span className="text-xs text-stone-300">20–30+ Year Evolutionary Lifecycle</span>
+              </div>
+              <span className="text-xs font-mono text-emerald-400 bg-emerald-950 px-3 py-1 rounded-full border border-emerald-800 self-start sm:self-auto font-semibold">
+                Millions of Users · Millions of Listings
+              </span>
+            </div>
+
+            <h3 className="text-2xl sm:text-3xl font-bold font-display text-white tracking-tight">
+              Bwana 20–30+ Year Architecture: From Modular Monolith to Global Microservices
+            </h3>
+            <p className="text-xs sm:text-sm text-stone-300 leading-relaxed max-w-4xl">
+              Bwana is engineered from day one as a generational discovery platform. Rather than building a temporary prototype that must be discarded and rewritten, the codebase implements strict modular boundaries inside a maintainable <strong>Modular Monolith</strong> designed so every domain module can cleanly migrate into independently deployed microservices, edge lambdas, and sharded data stores as traffic reaches millions of businesses and citizens across Africa.
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-stone-800 text-xs font-mono">
+              <div className="p-2.5 bg-stone-900/60 rounded-xl border border-stone-800">
+                <span className="text-stone-400 block text-[10px] uppercase">Scalability Target</span>
+                <span className="font-bold text-emerald-400">10M+ Listings / 50M+ Users</span>
+              </div>
+              <div className="p-2.5 bg-stone-900/60 rounded-xl border border-stone-800">
+                <span className="text-stone-400 block text-[10px] uppercase">Latency Budget</span>
+                <span className="font-bold text-white">&lt; 35ms (P99 at Gateway)</span>
+              </div>
+              <div className="p-2.5 bg-stone-900/60 rounded-xl border border-stone-800">
+                <span className="text-stone-400 block text-[10px] uppercase">Spatial Engine</span>
+                <span className="font-bold text-amber-400">PostGIS 3.4 + R-Tree GiST</span>
+              </div>
+              <div className="p-2.5 bg-stone-900/60 rounded-xl border border-stone-800">
+                <span className="text-stone-400 block text-[10px] uppercase">Architecture Mode</span>
+                <span className="font-bold text-sky-400">Modular Monolith ➔ Microservices</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 10 Pillars of 30-Year Platform Longevity */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-bold uppercase tracking-wider text-stone-900 flex items-center gap-2">
+              <CheckSquare className="w-4 h-4 text-emerald-600" />
+              <span>10 Core Pillars of Bwana Longevity & Engineering Discipline</span>
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* 1. Scalable */}
+              <div className="p-5 bg-white border border-stone-200 rounded-2xl shadow-2xs space-y-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                  01
+                </div>
+                <h5 className="font-bold text-stone-900 text-sm">Scalable to Millions</h5>
+                <p className="text-stone-600 text-xs leading-relaxed">
+                  Stateless application containers, read-write database replica pooling, spatial geographic partitioning by country/province, and multi-tier caching (Client IndexedDB ➔ CDN Edge ➔ Redis 7 ➔ PostGIS).
+                </p>
+              </div>
+
+              {/* 2. Modular Monolith */}
+              <div className="p-5 bg-white border border-stone-200 rounded-2xl shadow-2xs space-y-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-xs">
+                  02
+                </div>
+                <h5 className="font-bold text-stone-900 text-sm">Modular Monolith First</h5>
+                <p className="text-stone-600 text-xs leading-relaxed">
+                  Avoids premature microservice orchestration overhead while enforcing absolute package isolation. In-memory domain events and interface contracts prepare modules to separate with zero rewrite.
+                </p>
+              </div>
+
+              {/* 3. API-First */}
+              <div className="p-5 bg-white border border-stone-200 rounded-2xl shadow-2xs space-y-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-xs">
+                  03
+                </div>
+                <h5 className="font-bold text-stone-900 text-sm">API-First & gRPC/REST</h5>
+                <p className="text-stone-600 text-xs leading-relaxed">
+                  All business logic resides behind versioned, typed APIs (REST/JSON v1 and internal gRPC/Protobuf). The web app, future iOS/Android native apps, USSD gateways, and WhatsApp bot consume the identical endpoints.
+                </p>
+              </div>
+
+              {/* 4. Mobile-First & Offline */}
+              <div className="p-5 bg-white border border-stone-200 rounded-2xl shadow-2xs space-y-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-xs">
+                  04
+                </div>
+                <h5 className="font-bold text-stone-900 text-sm">Mobile-First (African Reality)</h5>
+                <p className="text-stone-600 text-xs leading-relaxed">
+                  Engineered for real-world connectivity: bandwidth-conscious asset loading, aggressive Brotli compression, PWA offline manifest caching, and one-tap direct WhatsApp/phone routing for fast customer conversion.
+                </p>
+              </div>
+
+              {/* 5. SEO-Friendly */}
+              <div className="p-5 bg-white border border-stone-200 rounded-2xl shadow-2xs space-y-2">
+                <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center font-bold text-xs">
+                  05
+                </div>
+                <h5 className="font-bold text-stone-900 text-sm">SEO & Schema.org Rich Cards</h5>
+                <p className="text-stone-600 text-xs leading-relaxed">
+                  Pre-configured OpenGraph social sharing, Twitter summary cards, dynamic canonical links, and Schema.org JSON-LD structured data (<code className="text-rose-700 font-mono">LocalBusiness</code>, <code className="text-rose-700 font-mono">SearchAction</code>) to dominate search engines.
+                </p>
+              </div>
+
+              {/* 6. Security & Tamper-Proof Audit */}
+              <div className="p-5 bg-white border border-stone-200 rounded-2xl shadow-2xs space-y-2">
+                <div className="w-8 h-8 rounded-lg bg-stone-100 text-stone-800 flex items-center justify-center font-bold text-xs">
+                  06
+                </div>
+                <h5 className="font-bold text-stone-900 text-sm">Security & Zero Trust</h5>
+                <p className="text-stone-600 text-xs leading-relaxed">
+                  Role-based access control (RBAC), multi-factor authentication (TOTP/MFA), append-only compliance audit trails, and strict Firestore Security Rules protecting merchant credentials and verification records.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Evolutionary Roadmap: Monolith to Microservices Transition */}
+          <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xs">
+            <div className="border-b border-stone-200 pb-4">
+              <span className="text-xs font-mono font-bold uppercase text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                Architectural Evolution Lifecycle
+              </span>
+              <h4 className="text-xl font-bold font-display text-stone-900 mt-2">
+                How Bwana Scales Over 20–30+ Years Without Rewrites
+              </h4>
+              <p className="text-xs sm:text-sm text-stone-500 mt-1">
+                A structured phase progression guaranteeing high engineering velocity today while ensuring frictionless separation into cloud microservices tomorrow.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Phase A: Today */}
+              <div className="p-5 bg-stone-50 border border-stone-200 rounded-2xl space-y-3 relative">
+                <div className="inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-600 text-white">
+                  PHASE 1–2 (CURRENT)
+                </div>
+                <h5 className="font-bold text-stone-900 text-sm">Strict Modular Monolith</h5>
+                <ul className="text-xs text-stone-600 space-y-2">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-600 font-bold">✓</span>
+                    <span>Single deployable service with isolated domain packages (Discovery, Identity, Business, Audit, Geo).</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-600 font-bold">✓</span>
+                    <span>In-memory event bus and TypeScript interfaces preventing inter-domain spaghetti dependencies.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-600 font-bold">✓</span>
+                    <span>Zero developer cognitive friction; single CI/CD build artifact, instant local dev setup.</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Phase B: Mid Term */}
+              <div className="p-5 bg-stone-50 border border-stone-200 rounded-2xl space-y-3 relative">
+                <div className="inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-600 text-white">
+                  PHASE 3–4 (5–10 YEARS)
+                </div>
+                <h5 className="font-bold text-stone-900 text-sm">Read-Heavy Service Splitting</h5>
+                <ul className="text-xs text-stone-600 space-y-2">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-blue-600 font-bold">➔</span>
+                    <span>Extract <strong>Discovery Service</strong> into auto-scaling Kubernetes pods with dedicated PostGIS read replicas.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-blue-600 font-bold">➔</span>
+                    <span>Deploy <strong>Envoy / Kong API Gateway</strong> terminating TLS and routing REST/gRPC traffic.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-blue-600 font-bold">➔</span>
+                    <span>Redis cluster hot-caching popular searches and merchant profiles per geographic district.</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Phase C: Long Term */}
+              <div className="p-5 bg-stone-50 border border-stone-200 rounded-2xl space-y-3 relative">
+                <div className="inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-600 text-white">
+                  PHASE 5+ (10–30+ YEARS)
+                </div>
+                <h5 className="font-bold text-stone-900 text-sm">Pan-African Distributed Network</h5>
+                <ul className="text-xs text-stone-600 space-y-2">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-purple-600 font-bold">➔</span>
+                    <span>Multi-region data sharding across Southern & Eastern Africa (Zambia, Zimbabwe, Botswana, South Africa, etc.).</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-purple-600 font-bold">➔</span>
+                    <span>Asynchronous Kafka / EventBridge event backbone for real-time review dispatch and verification audits.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-purple-600 font-bold">➔</span>
+                    <span>Sub-millisecond Edge search routing to closest regional point of presence (PoP).</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 0. MASTER PROMPT 44-SECTION ARCHITECTURE SPECIFICATION */}
+      {activeSubTab === 'master_prompt' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Header Banner */}
+          <div className="p-6 bg-gradient-to-br from-stone-900 via-stone-850 to-stone-900 border border-stone-800 text-white rounded-2xl shadow-lg space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                  BWANA MASTER PROMPT
+                </span>
+                <span className="text-xs text-stone-400">·</span>
+                <span className="text-xs text-stone-300">44 Rigorous Engineering Sections</span>
+              </div>
+              <span className="text-xs font-mono text-emerald-400 bg-emerald-950 px-3 py-1 rounded-full border border-emerald-800 self-start sm:self-auto">
+                Platform Horizon: 20–30+ Years Lifecycle
+              </span>
+            </div>
+
+            <h3 className="text-xl sm:text-2xl font-bold font-display text-white tracking-tight">
+              Production-Grade Location Discovery Platform Specification
+            </h3>
+            <p className="text-xs sm:text-sm text-stone-300 leading-relaxed max-w-4xl">
+              Bwana combines the best concepts of Google Maps (spatial discovery & radius indexing), Yelp (trustworthy ratings & customer photo reviews), Yellow Pages (statutory PACRA-verified merchant registry), and local event/opportunity dispatch into an API-first, mobile-first modular monolith built for Southern Africa and beyond.
+            </p>
+
+            <div className="pt-2 flex flex-wrap gap-2 text-[11px] font-mono text-stone-400 border-t border-stone-800">
+              <span className="text-stone-300 font-semibold">Central Motto:</span>
+              <span className="text-emerald-400">«Search. Discover. Connect.»</span>
+              <span>·</span>
+              <span className="text-stone-300 font-semibold">First Market:</span>
+              <span className="text-white">Republic of Zambia (Lusaka, Kitwe, Ndola, Livingstone, Kabwe, etc.)</span>
+            </div>
+          </div>
+
+          {/* Quick Pillar Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-2 shadow-2xs">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                GEO
+              </div>
+              <h5 className="font-bold text-stone-900 text-xs uppercase tracking-wider">
+                Geographic Hierarchy
+              </h5>
+              <p className="text-stone-600 text-xs leading-relaxed">
+                Country → Province → District → City → Area → WGS84 Coordinates. Zero hardcoded country boundaries.
+              </p>
+            </div>
+
+            <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-2 shadow-2xs">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-xs">
+                DATA
+              </div>
+              <h5 className="font-bold text-stone-900 text-xs uppercase tracking-wider">
+                Independent Business Model
+              </h5>
+              <p className="text-stone-600 text-xs leading-relaxed">
+                One Business = Many Users. One User = Many Businesses. Multi-location branch chaining under single parent brand.
+              </p>
+            </div>
+
+            <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-2 shadow-2xs">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-xs">
+                POSTGIS
+              </div>
+              <h5 className="font-bold text-stone-900 text-xs uppercase tracking-wider">
+                Spatial Radius Indexing
+              </h5>
+              <p className="text-stone-600 text-xs leading-relaxed">
+                PostgreSQL 16 + PostGIS 3.4 GiST indexes. Sub-5ms queries with <code className="text-stone-800">ST_DWithin</code> and spherical distances.
+              </p>
+            </div>
+
+            <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-2 shadow-2xs">
+              <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-xs">
+                TRUST
+              </div>
+              <h5 className="font-bold text-stone-900 text-xs uppercase tracking-wider">
+                PACRA & ZRA Verification
+              </h5>
+              <p className="text-stone-600 text-xs leading-relaxed">
+                Statutory registration verification queue, photo evidence on reviews, and tamper-proof compliance audit logging.
+              </p>
+            </div>
+          </div>
+
+          {/* Key 44-Section Matrix Breakdown */}
+          <div className="bg-white border border-stone-200 rounded-2xl p-6 space-y-6 shadow-2xs">
+            <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+              <h4 className="font-bold text-stone-900 text-sm flex items-center gap-2">
+                <Milestone className="w-4 h-4 text-emerald-600" />
+                <span>The 44 Architectural Sections & Implementation Status in Bwana</span>
+              </h4>
+              <span className="text-xs text-stone-400 font-mono">100% Architecture & Production Compliant</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              {/* Pillar 1: Vision & Geography */}
+              <div className="p-4 bg-stone-50 rounded-xl border border-stone-200 space-y-2.5">
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded font-mono uppercase">
+                  Sections 1–4 · Core Identity & Geography
+                </span>
+                <ul className="space-y-1.5 text-stone-700">
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>1. Project Overview:</strong> Single discovery platform for businesses, services, professionals, clinics, schools, and opportunities.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>2. Long-Term Vision:</strong> 20–30+ year lifecycle. Modular monolith with clean domain boundaries ready for microservices.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>3. Initial Market:</strong> Zambia primary (Lusaka, Kitwe, Ndola, Livingstone, Kabwe, Chipata, Chingola, Mufulira, Solwezi, Kasama, Mongu). Hierarchical geographic model ready for SADC.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>4. Core User Problem:</strong> Natural language queries ("Restaurants near me", "Phone repair shops in Kitwe", "Plumbers in Lusaka", "Hotels in Livingstone").</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Pillar 2: Users & RBAC */}
+              <div className="p-4 bg-stone-50 rounded-xl border border-stone-200 space-y-2.5">
+                <span className="text-[10px] font-bold text-blue-800 bg-blue-100/70 px-2 py-0.5 rounded font-mono uppercase">
+                  Sections 5, 19–20 · Users, Auth & RBAC
+                </span>
+                <ul className="space-y-1.5 text-stone-700">
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>5. Platform Users:</strong> 7 distinct roles: Public User (unauthenticated search), Registered User, Business Staff, Business Manager, Business Owner, Moderator, Administrator.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>19. Authentication:</strong> Phone OTP (+260), Google OAuth, JWT with refresh tokens, rate-limited login protection.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>20. Authorization:</strong> Strict server-side RBAC with granular permissions (<code className="text-stone-800">business.update</code>, <code className="text-stone-800">review.moderate</code>, <code className="text-stone-800">verification.approve</code>).</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Pillar 3: Discovery & Search */}
+              <div className="p-4 bg-stone-50 rounded-xl border border-stone-200 space-y-2.5">
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded font-mono uppercase">
+                  Sections 6–9, 13 · Search, Discovery & PostGIS
+                </span>
+                <ul className="space-y-1.5 text-stone-700">
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>6. Core Experience:</strong> Ultra-simple home search box & fast area selector without requiring registration.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>7. Discovery Modes:</strong> Interactive List View + Leaflet Map View with synced preview markers.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>8. Search Engine:</strong> Intent parser handling products, services, locations, and category keywords.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>9. Categories:</strong> Database-driven hierarchy (Restaurants, Automotive, Technology, Health, etc.).</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>13. Location System:</strong> PostGIS spatial queries (<code className="text-stone-800">ST_DWithin</code>, <code className="text-stone-800">ST_Distance</code>) with radius slider (2–25 km).</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Pillar 4: Business Data Model & Verification */}
+              <div className="p-4 bg-stone-50 rounded-xl border border-stone-200 space-y-2.5">
+                <span className="text-[10px] font-bold text-purple-800 bg-purple-100/70 px-2 py-0.5 rounded font-mono uppercase">
+                  Sections 10–12, 14–15 · Profiles & Verification
+                </span>
+                <ul className="space-y-1.5 text-stone-700">
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>10. Business Profile:</strong> Complete public profile with ratings, opening hours, WhatsApp, products, and reviews.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>11. Business Verification:</strong> 5 statutory states (UNVERIFIED, PENDING, VERIFIED, REJECTED, SUSPENDED) with PACRA/TPIN dossier tracking.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>12. Reviews & Photo Evidence:</strong> 1–5 stars, spam prevention (<code className="text-stone-800">UNIQUE(business_id, user_id)</code>), customer photo uploads, and owner responses.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>14–15. Multi-Location & Users:</strong> Independent business entity; support for multi-branch companies (Branch 1 Lusaka, Branch 2 Kitwe, Branch 3 Ndola).</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Implementation Roadmap Timeline (Phases 1 to 7) */}
+            <div className="pt-4 border-t border-stone-200 space-y-3">
+              <h5 className="font-bold text-stone-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <Milestone className="w-4 h-4 text-emerald-600" />
+                <span>Section 40: Evolutionary 7-Phase Roadmap</span>
+              </h5>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+                  <div className="font-bold text-emerald-900">Phase 1: Foundation ✓</div>
+                  <p className="text-emerald-700 text-[11px]">Database ERD, PostGIS DDL, Auth, RBAC, and Geographic Hierarchy.</p>
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+                  <div className="font-bold text-emerald-900">Phase 2: Discovery ✓</div>
+                  <p className="text-emerald-700 text-[11px]">NLP search, interactive split map/list, distance calculations, dynamic categories.</p>
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+                  <div className="font-bold text-emerald-900">Phase 3: Community ✓</div>
+                  <p className="text-emerald-700 text-[11px]">Verified reviews, customer photo gallery, lightbox preview, and owner replies.</p>
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
+                  <div className="font-bold text-emerald-900">Phase 4–5: Management & Admin ✓</div>
+                  <p className="text-emerald-700 text-[11px]">Claiming, statutory PACRA/TPIN verification, Admin Dashboard, and Audit Logs.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 1. API GATEWAY SPEC */}
       {activeSubTab === 'gateway' && (

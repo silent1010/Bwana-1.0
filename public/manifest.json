@@ -1,0 +1,19 @@
+{
+  "short_name": "Bwana",
+  "name": "Bwana — Location Discovery Platform",
+  "description": "Location-based business discovery, verified commercial directory, trades, and professional services across Zambia and Southern Africa.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#047857",
+  "background_color": "#0c0a09",
+  "orientation": "portrait",
+  "categories": ["business", "shopping", "lifestyle", "utilities"]
+}

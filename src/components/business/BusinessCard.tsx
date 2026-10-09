@@ -110,6 +110,25 @@ export const BusinessCard: React.FC<BusinessCardProps> = ({
             {business.tagline}
           </p>
 
+          {/* Business Attributes / Feature tags preview */}
+          {business.tags && business.tags.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap gap-1">
+              {business.tags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 font-medium"
+                >
+                  {tag}
+                </span>
+              ))}
+              {business.tags.length > 3 && (
+                <span className="text-[10px] text-stone-400 font-mono self-center">
+                  +{business.tags.length - 3} more
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Promotional snippet if active */}
           {business.promotions && business.promotions.length > 0 && (
             <div className="mt-2 text-[11px] text-amber-900 bg-amber-50/90 border border-amber-200/80 rounded px-2 py-1 flex items-center justify-between">

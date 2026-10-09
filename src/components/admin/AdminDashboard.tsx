@@ -22,8 +22,22 @@ import {
   BadgeCheck,
   Check,
   RefreshCw,
-  Building
+  Building,
+  TrendingUp,
+  BarChart3,
+  Calendar
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Area,
+  AreaChart
+} from 'recharts';
 import { VerificationRequest, AuditLogEntry, Business } from '../../types';
 
 interface AdminDashboardProps {
@@ -87,6 +101,70 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     pendingVerification: verifications.filter((v) => v.status === 'pending').length,
     verifiedBusinesses: businesses.filter((b) => b.verificationStatus === 'verified').length,
   };
+
+  // Trend of new business registrations over the last 30 days based on the audit logs
+  const registrationTrendData = useMemo(() => {
+    // Reference base time: 2026-09-29
+    const referenceDate = new Date('2026-09-29T12:00:00Z');
+    const dayMap = new Map<string, number>();
+
+    // Initialize all 30 days up to the reference date
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(referenceDate);
+      d.setUTCDate(d.getUTCDate() - i);
+      const isoDate = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      dayMap.set(isoDate, 0);
+    }
+
+    // Filter audit logs for business registration events
+    auditLogs.forEach((log) => {
+      const isRegAction =
+        log.action === 'BUSINESS_REGISTERED_PENDING_VERIFICATION' ||
+        log.action === 'BUSINESS_REGISTERED' ||
+        log.action === 'BUSINESS_CREATED' ||
+        (log.targetEntity === 'Business' &&
+          (log.action.includes('REGISTER') || log.details.toLowerCase().includes('new registration')));
+
+      if (isRegAction && log.timestamp) {
+        // Formats: '2026-09-29 09:42:15' or ISO '2026-09-29T...'
+        const logDateStr = log.timestamp.slice(0, 10);
+        if (dayMap.has(logDateStr)) {
+          dayMap.set(logDateStr, (dayMap.get(logDateStr) || 0) + 1);
+        }
+      }
+    });
+
+    let cumulativeTotal = 0;
+    const result: { date: string; displayDate: string; registrations: number; cumulative: number }[] = [];
+
+    dayMap.forEach((count, dateStr) => {
+      cumulativeTotal += count;
+      const parts = dateStr.split('-');
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthIdx = parseInt(parts[1], 10) - 1;
+      const dayNum = parseInt(parts[2], 10);
+      const displayDate = `${monthNames[monthIdx] || ''} ${dayNum}`;
+
+      result.push({
+        date: dateStr,
+        displayDate,
+        registrations: count,
+        cumulative: cumulativeTotal,
+      });
+    });
+
+    return result;
+  }, [auditLogs]);
+
+  // Total registrations captured in 30 days
+  const totalNewRegistrations30Days = useMemo(() => {
+    return registrationTrendData.reduce((acc, curr) => acc + curr.registrations, 0);
+  }, [registrationTrendData]);
+
+  // Peak daily registrations in 30 days
+  const peakRegistrations = useMemo(() => {
+    return Math.max(...registrationTrendData.map((d) => d.registrations), 0);
+  }, [registrationTrendData]);
 
   const handleRunPacraCheck = (reqId: string) => {
     setPacraCheckStatus((prev) => ({ ...prev, [reqId]: 'checking' }));
@@ -182,6 +260,119 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {platformStats.pendingVerification}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* 30-Day Business Registration Trend Chart (Recharts) */}
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200 shadow-2xs mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-200/80">
+                <TrendingUp className="w-4 h-4" />
+              </span>
+              <h2 className="text-base font-bold text-stone-900 tracking-tight">
+                New Business Registrations (Last 30 Days)
+              </h2>
+              <span className="text-[10px] font-mono font-semibold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                Live Audit Logs
+              </span>
+            </div>
+            <p className="text-xs text-stone-500 mt-1">
+              Daily registration intake captured from statutory PACRA & ZRA verification queue logs
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4 text-xs font-mono">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-stone-50 rounded-xl border border-stone-200">
+              <span className="text-stone-500">30d Total:</span>
+              <span className="font-bold text-stone-900 text-sm">{totalNewRegistrations30Days}</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-stone-50 rounded-xl border border-stone-200">
+              <span className="text-stone-500">Peak Day:</span>
+              <span className="font-bold text-rose-600 text-sm">{peakRegistrations}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Recharts Line Chart Container */}
+        <div className="h-64 sm:h-72 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={registrationTrendData}
+              margin={{ top: 10, right: 15, left: -20, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="regGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#e11d48" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#e11d48" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis
+                dataKey="displayDate"
+                stroke="#94a3b8"
+                fontSize={11}
+                tickLine={false}
+                axisLine={{ stroke: '#e2e8f0' }}
+                interval="preserveStartEnd"
+                minTickGap={20}
+              />
+              <YAxis
+                stroke="#94a3b8"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-stone-900 text-white text-xs p-3 rounded-xl shadow-xl border border-stone-700 space-y-1">
+                        <div className="font-mono text-stone-400 text-[10px] pb-1 border-b border-stone-800">
+                          {data.date} ({label})
+                        </div>
+                        <div className="flex items-center justify-between gap-4 pt-1">
+                          <span className="text-stone-300">Daily Registrations:</span>
+                          <span className="font-bold text-rose-400 font-mono text-sm">
+                            {data.registrations}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 text-[11px] text-stone-400">
+                          <span>Cumulative:</span>
+                          <span className="font-mono text-stone-300 font-medium">
+                            {data.cumulative}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="registrations"
+                stroke="#e11d48"
+                strokeWidth={2.5}
+                dot={{ r: 2.5, fill: '#e11d48', strokeWidth: 1, stroke: '#fff' }}
+                activeDot={{ r: 5, fill: '#e11d48', stroke: '#fff', strokeWidth: 2 }}
+                name="Registrations"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-stone-100 flex flex-wrap items-center justify-between text-[11px] text-stone-500 gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block" />
+            <span>Daily Statutory Registration Submissions (PACRA/ZRA verification queue)</span>
+          </div>
+          <span className="font-mono text-stone-400">
+            Source: audit_logs (BUSINESS_REGISTERED_PENDING_VERIFICATION)
+          </span>
         </div>
       </div>
 

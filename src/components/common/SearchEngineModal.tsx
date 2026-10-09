@@ -9,7 +9,10 @@ import {
   Compass,
   CheckCircle2,
   Tag,
-  Briefcase
+  Briefcase,
+  History,
+  Trash2,
+  Clock
 } from 'lucide-react';
 import { Business, Category, LocationArea, Professional } from '../../types';
 import { CATEGORIES } from '../../data/mockData';
@@ -38,6 +41,37 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
   const [onlyVerified, setOnlyVerified] = useState(false);
   const [maxDistance, setMaxDistance] = useState<number>(25);
 
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('bwana_search_history');
+      return stored ? JSON.parse(stored) : [
+        'Hardware stores in Kitwe',
+        'Plumbers near me',
+        'Auto mechanics in Lusaka',
+        'Pharmacy open 24/7'
+      ];
+    } catch {
+      return ['Hardware stores in Kitwe', 'Plumbers near me'];
+    }
+  });
+
+  const saveQueryToHistory = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const next = [trimmed, ...searchHistory.filter((item) => item.toLowerCase() !== trimmed.toLowerCase())].slice(0, 8);
+    setSearchHistory(next);
+    try {
+      localStorage.setItem('bwana_search_history', JSON.stringify(next));
+    } catch {}
+  };
+
+  const clearSearchHistory = () => {
+    setSearchHistory([]);
+    try {
+      localStorage.removeItem('bwana_search_history');
+    } catch {}
+  };
+
   // NLP & Intent Parser implementing Section 6 of PRD
   const parsedIntent = useMemo(() => {
     if (!query.trim()) return null;
@@ -50,17 +84,27 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
     if (lower.includes('in kitwe')) detectedLocation = 'Kitwe';
     else if (lower.includes('in lusaka')) detectedLocation = 'Lusaka';
     else if (lower.includes('in ndola')) detectedLocation = 'Ndola';
-    else if (lower.includes('near me')) detectedLocation = `${currentLocation.district} (Current)`;
+    else if (lower.includes('in livingstone')) detectedLocation = 'Livingstone';
+    else if (lower.includes('near me')) detectedLocation = `${currentLocation.district} (Current GPS Radius)`;
 
     if (lower.includes('plumber') || lower.includes('electrician') || lower.includes('developer') || lower.includes('lawyer') || lower.includes('accountant')) {
       detectedIntent = 'professional_search';
     } else if (lower.includes('eat') || lower.includes('restaurant') || lower.includes('food') || lower.includes('cafe')) {
       detectedIntent = 'category_search';
       detectedCategory = 'Food & Dining';
+    } else if (lower.includes('pharmacy') || lower.includes('pharmacies') || lower.includes('chemist') || lower.includes('clinic')) {
+      detectedIntent = 'category_search';
+      detectedCategory = 'Health & Medical';
+    } else if (lower.includes('hotel') || lower.includes('lodge') || lower.includes('accommodation') || lower.includes('resort')) {
+      detectedIntent = 'category_search';
+      detectedCategory = 'Accommodation';
+    } else if (lower.includes('computer') || lower.includes('laptop') || lower.includes('phone') || lower.includes('tech')) {
+      detectedIntent = 'category_search';
+      detectedCategory = 'Professional Services';
     } else if (lower.includes('hardware') || lower.includes('cement') || lower.includes('paint') || lower.includes('roofing') || lower.includes('tools')) {
       detectedIntent = 'category_search';
       detectedCategory = 'Home & Construction';
-    } else if (lower.includes('repair') || lower.includes('mechanic') || lower.includes('service')) {
+    } else if (lower.includes('repair') || lower.includes('mechanic') || lower.includes('salon') || lower.includes('service')) {
       detectedIntent = 'service_search';
     }
 
@@ -115,8 +159,8 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-6 bg-stone-950/75 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full border border-stone-200 overflow-hidden my-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-stone-950/75 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full border border-stone-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
         {/* Search Input Bar */}
         <div className="p-4 border-b border-stone-200 bg-stone-50/70">
           <div className="flex items-center gap-3 bg-white border border-stone-300 rounded-xl px-4 py-3 shadow-xs focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
@@ -145,28 +189,68 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
             </button>
           </div>
 
-          {/* Quick Query Pills matching PRD */}
+          {/* Quick Query Pills matching PRD & Master Specification */}
           <div className="flex items-center gap-2 mt-3 overflow-x-auto no-scrollbar py-1">
             <span className="text-[11px] font-medium text-stone-400 uppercase tracking-wider whitespace-nowrap">
               Try:
             </span>
             {[
-              'Hardware stores in Kitwe',
-              'Plumbers near me',
-              'Car repair',
-              'ABC Hardware',
-              'Places to eat near me',
-              'Electrician near me',
+              'Restaurants near me',
+              'Phone repair shops in Kitwe',
+              'Plumbers in Lusaka',
+              'Pharmacies near me',
+              'Hotels in Livingstone',
+              'Electricians in Ndola',
+              'Computer shops near me',
+              'Hair salons near me',
             ].map((promptText) => (
               <button
                 key={promptText}
-                onClick={() => setQuery(promptText)}
-                className="text-xs px-2.5 py-1 bg-white hover:bg-emerald-50 text-stone-700 hover:text-emerald-700 border border-stone-200 rounded-md transition-colors whitespace-nowrap"
+                onClick={() => {
+                  setQuery(promptText);
+                  saveQueryToHistory(promptText);
+                }}
+                className="text-xs px-2.5 py-1 bg-white hover:bg-emerald-50 text-stone-700 hover:text-emerald-700 border border-stone-200 rounded-md transition-colors whitespace-nowrap cursor-pointer shadow-2xs font-medium"
               >
                 {promptText}
               </button>
             ))}
           </div>
+
+          {/* Search History Row for Registered / Persistent Users */}
+          {!query && searchHistory.length > 0 && (
+            <div className="mt-3 pt-2.5 border-t border-stone-200/80">
+              <div className="flex items-center justify-between mb-1.5 text-[11px]">
+                <span className="font-semibold text-stone-600 flex items-center gap-1">
+                  <History className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Recent Search History:</span>
+                </span>
+                <button
+                  onClick={clearSearchHistory}
+                  className="text-stone-400 hover:text-rose-600 flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Clear personal search history"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Clear history</span>
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {searchHistory.map((historyItem) => (
+                  <button
+                    key={historyItem}
+                    onClick={() => {
+                      setQuery(historyItem);
+                      saveQueryToHistory(historyItem);
+                    }}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 bg-stone-100 hover:bg-emerald-50 text-stone-700 hover:text-emerald-800 rounded-lg border border-stone-200 transition-colors cursor-pointer"
+                  >
+                    <Clock className="w-3 h-3 text-stone-400" />
+                    <span>{historyItem}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* NLP & PostGIS Search Pipeline Inspector (Section 6 & 7) */}
@@ -283,6 +367,7 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
                   <div
                     key={biz.id}
                     onClick={() => {
+                      if (query.trim()) saveQueryToHistory(query);
                       onSelectBusiness(biz);
                       onClose();
                     }}

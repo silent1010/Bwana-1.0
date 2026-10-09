@@ -21,7 +21,16 @@ import {
   Eye
 } from 'lucide-react';
 import { Business, VerificationRequest, PriceType, BusinessProduct, BusinessService } from '../../types';
-import { LOCATIONS } from '../../data/mockData';
+import {
+  SUPPORTED_COUNTRIES,
+  PROVINCES_REGIONS,
+  DISTRICTS,
+  CITIES_TOWNS,
+  HIERARCHICAL_LOCATIONS,
+  getProvincesByCountry,
+  getDistrictsByProvince,
+  getCitiesByDistrict
+} from '../../data/geoHierarchy';
 
 interface BusinessRegistrationPortalProps {
   onRegisterBusiness: (business: Business, verification: VerificationRequest) => void;
@@ -46,9 +55,11 @@ export const BusinessRegistrationPortal: React.FC<BusinessRegistrationPortalProp
   const [description, setDescription] = useState('');
   const [yearFounded, setYearFounded] = useState<number>(2022);
 
-  // Step 2: Location
-  const [selectedCity, setSelectedCity] = useState('Kitwe');
+  // Step 2: Location (Hierarchical: Country → Province → District → Town → Area)
+  const [selectedCountryCode, setSelectedCountryCode] = useState('ZM');
   const [selectedProvince, setSelectedProvince] = useState('Copperbelt');
+  const [selectedDistrict, setSelectedDistrict] = useState('Kitwe');
+  const [selectedCity, setSelectedCity] = useState('Kitwe');
   const [area, setArea] = useState('Parklands');
   const [address, setAddress] = useState('');
   const [latitude, setLatitude] = useState<number>(-12.8024);
@@ -160,9 +171,12 @@ export const BusinessRegistrationPortal: React.FC<BusinessRegistrationPortalProp
       email: email.trim(),
       website: website.trim(),
       address: address.trim() || `${area}, ${selectedCity}`,
-      area: area.trim() || 'Central',
-      city: selectedCity,
+      countryCode: selectedCountryCode,
+      country: SUPPORTED_COUNTRIES.find((c) => c.code === selectedCountryCode)?.name || 'Zambia',
       province: selectedProvince,
+      district: selectedDistrict,
+      city: selectedCity,
+      area: area.trim() || 'Central',
       coordinates: {
         latitude: latitude || -12.8024,
         longitude: longitude || 28.2132
@@ -457,18 +471,96 @@ export const BusinessRegistrationPortal: React.FC<BusinessRegistrationPortalProp
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-stone-800 mb-1">Province *</label>
+                <label className="block text-xs font-semibold text-stone-800 mb-1">Country Market *</label>
+                <select
+                  value={selectedCountryCode}
+                  onChange={(e) => {
+                    const cCode = e.target.value;
+                    setSelectedCountryCode(cCode);
+                    const provs = getProvincesByCountry(cCode);
+                    if (provs.length > 0) {
+                      setSelectedProvince(provs[0].name);
+                      const dists = getDistrictsByProvince(provs[0].id);
+                      if (dists.length > 0) {
+                        setSelectedDistrict(dists[0].name);
+                        const cities = getCitiesByDistrict(dists[0].id);
+                        if (cities.length > 0) {
+                          setSelectedCity(cities[0].name);
+                          setLatitude(cities[0].coordinates.latitude);
+                          setLongitude(cities[0].coordinates.longitude);
+                        }
+                      }
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 border border-stone-300 rounded-xl text-xs sm:text-sm focus:border-emerald-600 focus:outline-none bg-white font-medium"
+                >
+                  {SUPPORTED_COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.flagEmoji} {c.name} ({c.code}) {c.isActive ? '— Primary Market' : '— Expansion'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-800 mb-1">Province / Region *</label>
                 <select
                   value={selectedProvince}
-                  onChange={(e) => setSelectedProvince(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-xl text-xs sm:text-sm focus:border-emerald-600 focus:outline-none bg-white"
+                  onChange={(e) => {
+                    const pName = e.target.value;
+                    setSelectedProvince(pName);
+                    const provObj = PROVINCES_REGIONS.find((p) => p.name === pName && p.countryCode === selectedCountryCode);
+                    if (provObj) {
+                      const dists = getDistrictsByProvince(provObj.id);
+                      if (dists.length > 0) {
+                        setSelectedDistrict(dists[0].name);
+                        const cities = getCitiesByDistrict(dists[0].id);
+                        if (cities.length > 0) {
+                          setSelectedCity(cities[0].name);
+                          setLatitude(cities[0].coordinates.latitude);
+                          setLongitude(cities[0].coordinates.longitude);
+                        }
+                      }
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 border border-stone-300 rounded-xl text-xs sm:text-sm focus:border-emerald-600 focus:outline-none bg-white font-medium"
                 >
-                  <option value="Copperbelt">Copperbelt Province</option>
-                  <option value="Lusaka">Lusaka Province</option>
-                  <option value="Southern">Southern Province</option>
-                  <option value="North-Western">North-Western Province</option>
-                  <option value="Eastern">Eastern Province</option>
-                  <option value="Central">Central Province</option>
+                  {getProvincesByCountry(selectedCountryCode).map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-800 mb-1">District *</label>
+                <select
+                  value={selectedDistrict}
+                  onChange={(e) => {
+                    const dName = e.target.value;
+                    setSelectedDistrict(dName);
+                    const distObj = DISTRICTS.find((d) => d.name === dName && d.countryCode === selectedCountryCode);
+                    if (distObj) {
+                      const cities = getCitiesByDistrict(distObj.id);
+                      if (cities.length > 0) {
+                        setSelectedCity(cities[0].name);
+                        setLatitude(cities[0].coordinates.latitude);
+                        setLongitude(cities[0].coordinates.longitude);
+                      }
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 border border-stone-300 rounded-xl text-xs sm:text-sm focus:border-emerald-600 focus:outline-none bg-white font-medium"
+                >
+                  {(() => {
+                    const provObj = PROVINCES_REGIONS.find((p) => p.name === selectedProvince && p.countryCode === selectedCountryCode);
+                    const dists = provObj ? getDistrictsByProvince(provObj.id) : [];
+                    return dists.map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name} District
+                      </option>
+                    ));
+                  })()}
                 </select>
               </div>
 
@@ -476,17 +568,32 @@ export const BusinessRegistrationPortal: React.FC<BusinessRegistrationPortalProp
                 <label className="block text-xs font-semibold text-stone-800 mb-1">City / Town *</label>
                 <select
                   value={selectedCity}
-                  onChange={(e) => setSelectedCity(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-stone-300 rounded-xl text-xs sm:text-sm focus:border-emerald-600 focus:outline-none bg-white"
+                  onChange={(e) => {
+                    const cName = e.target.value;
+                    setSelectedCity(cName);
+                    const matchedCity = CITIES_TOWNS.find((c) => c.name === cName && c.countryCode === selectedCountryCode);
+                    if (matchedCity) {
+                      setLatitude(matchedCity.coordinates.latitude);
+                      setLongitude(matchedCity.coordinates.longitude);
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 border border-stone-300 rounded-xl text-xs sm:text-sm focus:border-emerald-600 focus:outline-none bg-white font-medium"
                 >
-                  <option value="Kitwe">Kitwe</option>
-                  <option value="Ndola">Ndola</option>
-                  <option value="Lusaka">Lusaka</option>
-                  <option value="Livingstone">Livingstone</option>
-                  <option value="Solwezi">Solwezi</option>
-                  <option value="Chipata">Chipata</option>
-                  <option value="Kabwe">Kabwe</option>
-                  <option value="Kalulushi">Kalulushi</option>
+                  {(() => {
+                    const provObj = PROVINCES_REGIONS.find((p) => p.name === selectedProvince && p.countryCode === selectedCountryCode);
+                    const distObj = DISTRICTS.find((d) => d.name === selectedDistrict && d.countryCode === selectedCountryCode);
+                    const cities = distObj
+                      ? getCitiesByDistrict(distObj.id)
+                      : provObj
+                      ? CITIES_TOWNS.filter((c) => c.provinceId === provObj.id)
+                      : CITIES_TOWNS.filter((c) => c.countryCode === selectedCountryCode);
+                    
+                    return (cities.length > 0 ? cities : CITIES_TOWNS.filter((c) => c.countryCode === selectedCountryCode)).map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name} {c.isMajorCity ? '★' : ''}
+                      </option>
+                    ));
+                  })()}
                 </select>
               </div>
 
