@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   MapPin,
   Search,
@@ -12,10 +12,18 @@ import {
   LogOut,
   ShieldCheck,
   Lock,
-  Menu
+  Menu,
+  ShoppingBag,
+  User,
+  LogIn,
+  Compass,
+  Briefcase,
+  Calendar,
+  Sparkles,
 } from 'lucide-react';
 import { UserRole, LocationArea, SystemUser } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
+import { useCart } from '../../context/CartContext';
 
 interface NavbarProps {
   currentTab: string;
@@ -31,12 +39,15 @@ interface NavbarProps {
   onOpenBusinessLogin?: () => void;
   onOpenAdminGate?: () => void;
   onOpenNotifications: () => void;
+  onOpenCart?: () => void;
   unreadCount: number;
   isAuthenticated?: boolean;
+  isNrcVerified?: boolean;
   currentUserEmail?: string;
   currentUserName?: string;
   onSignOut?: () => void;
   onSwitchUser?: (user: SystemUser) => void;
+  onOpenNrcModal?: () => void;
   isLiveConnected?: boolean;
   savedCount?: number;
 }
@@ -54,363 +65,579 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenBusinessLogin,
   onOpenAdminGate,
   onOpenNotifications,
+  onOpenCart,
   unreadCount,
   isAuthenticated,
+  isNrcVerified,
   currentUserName,
   onSignOut,
   savedCount = 0,
 }) => {
   const { isDark, toggleTheme } = useTheme();
+  const { totalItems } = useCart();
 
   const isBusinessOwner = currentRole === 'business' || currentRole === 'business_owner';
+  const isAdmin = currentRole === 'admin';
 
   return (
-    <header className="sticky top-0 z-40 bg-stone-900 text-stone-100 border-b border-stone-800 shadow-sm backdrop-blur-md">
-      {/* Upper bar: Area selection & Public status */}
-      <div className="bg-stone-950 px-4 py-1.5 text-xs border-b border-stone-800/80 flex items-center justify-between text-stone-400">
-        <div className="flex items-center gap-2 max-w-7xl mx-auto w-full">
+    <header className="sticky top-0 z-40 bg-white/95 dark:bg-stone-900/95 text-stone-900 dark:text-stone-100 border-b border-stone-200 dark:border-stone-800 shadow-xs backdrop-blur-md transition-colors duration-200">
+      {/* 1. Upper Bar: Location Selector & Human-Friendly Account Status */}
+      <div className="bg-stone-100/90 dark:bg-stone-950/90 px-3 sm:px-6 py-1.5 text-xs border-b border-stone-200 dark:border-stone-800/80 transition-colors duration-200">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          {/* Location Trigger */}
           <button
+            type="button"
             onClick={onOpenLocationModal}
-            className="flex items-center gap-1.5 text-stone-300 hover:text-white transition-colors cursor-pointer group"
+            className="flex items-center gap-1.5 text-stone-700 dark:text-stone-300 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors cursor-pointer group shrink-0"
+            title="Change your Zambian shopping location"
           >
-            <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
-            <span className="text-stone-400 text-xs">Location:</span>
-            <span className="font-semibold text-stone-200">{currentLocation.name}, {currentLocation.country || 'Zambia'}</span>
-            <span className="text-stone-500">·</span>
-            <span className="text-stone-400 text-xs hidden sm:inline">Change</span>
-            <ChevronDown className="w-3 h-3 text-stone-400 group-hover:text-white transition-colors" />
+            <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+            <span className="text-stone-500 dark:text-stone-400 text-[11px] hidden xs:inline">Location:</span>
+            <span className="font-semibold text-stone-800 dark:text-stone-200 text-xs">
+              {currentLocation?.name || 'Kitwe Central'}, {currentLocation?.country || 'Zambia'}
+            </span>
+            <ChevronDown className="w-3 h-3 text-stone-400 group-hover:text-stone-700 dark:group-hover:text-white transition-colors" />
           </button>
-          
-          <div className="ml-auto flex items-center gap-3 text-xs">
-            {onOpenAuth && (
+
+          {/* Right Status Pill / Info */}
+          <div className="flex items-center gap-2.5 text-xs truncate">
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                {isNrcVerified ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentTab('user_dashboard')}
+                    className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700/60 px-2 py-0.5 rounded-md font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors cursor-pointer"
+                    title="Verified Zambian Citizen profile active. Click to view profile."
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="hidden sm:inline font-semibold">Verified Resident:</span>
+                    <span>NRC Active</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentTab('user_dashboard')}
+                    className="flex items-center gap-1.5 text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700/60 px-2 py-0.5 rounded-md font-medium hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors cursor-pointer"
+                    title="Account active. Click to verify your NRC for full access."
+                  >
+                    <User className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span className="hidden sm:inline font-semibold">Member Status:</span>
+                    <span className="underline">Verify NRC</span>
+                  </button>
+                )}
+
+                {currentUserName && (
+                  <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-stone-600 dark:text-stone-300 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 px-2 py-0.5 rounded-md font-medium">
+                    👋 Hi, {currentUserName.split(' ')[0]}
+                  </span>
+                )}
+              </div>
+            ) : (
               <button
+                type="button"
                 onClick={onOpenAuth}
-                className="flex items-center gap-1.5 text-[11px] text-stone-300 hover:text-emerald-400 bg-stone-900 hover:bg-stone-800 border border-stone-700 px-2 py-0.5 rounded transition-all cursor-pointer"
-                title="Switch between the 6 platform user roles & inspect RBAC capabilities"
+                className="flex items-center gap-1.5 text-[11px] text-stone-600 dark:text-stone-300 hover:text-emerald-700 dark:hover:text-emerald-400 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 px-2.5 py-0.5 rounded-md transition-colors cursor-pointer"
+                title="Click to sign in or register a free account"
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-semibold">User Role:</span>
-                <span className="text-emerald-300 capitalize font-mono">{currentRole?.replace('_', ' ') || 'Public User'}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span>Guest Visitor</span>
+                <span className="text-stone-400 dark:text-stone-600">·</span>
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400">Sign In Free</span>
               </button>
             )}
-
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>Public Directory (No Login Required)</span>
-            </span>
           </div>
         </div>
       </div>
 
-      {/* Main 3-Zone Navigation Header */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-        {/* Zone 1: Sidebar Menu Trigger & Wordmark */}
-        <div className="flex items-center gap-3 sm:gap-4">
+      {/* 2. Main Row: Branding, Navigation Links & Primary Action Tools */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-3 sm:gap-4">
+        {/* Left: Menu Trigger & Wordmark */}
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
           {onOpenSidebar && (
             <button
+              type="button"
               onClick={onOpenSidebar}
-              className="p-2 rounded-xl text-stone-300 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer flex items-center justify-center border border-stone-800 hover:border-stone-700"
-              title="Open Navigation Menu"
+              className="p-2 sm:p-2.5 rounded-xl text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer flex items-center justify-center border border-stone-200 dark:border-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              title="Open all directory categories and services"
               aria-label="Open Sidebar Menu"
             >
-              <Menu className="w-5 h-5 text-emerald-400" />
+              <Menu className="w-5 h-5 text-stone-800 dark:text-stone-100" />
             </button>
           )}
 
           <button
+            type="button"
             onClick={() => setCurrentTab('discover')}
-            className="text-2xl font-bold tracking-tight text-white font-display flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer"
+            className="flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer text-left"
+            title="Bwana Marketplace Home"
           >
-            <span className="text-emerald-400">Bwana</span>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-white flex items-center justify-center font-black font-display text-lg shadow-sm">
+              B
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xl font-extrabold tracking-tight text-stone-950 dark:text-white font-display leading-tight flex items-center gap-1">
+                <span>Bwana</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              </span>
+              <span className="text-[10px] uppercase font-semibold tracking-wider text-emerald-700 dark:text-emerald-400 hidden xs:inline">
+                Zambia Directory
+              </span>
+            </div>
           </button>
         </div>
 
-        {/* Zone 2: Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-1 text-sm font-medium">
+        {/* Center: Search Trigger Input (Desktop & Tablet) */}
+        {onOpenSearch && (
+          <div className="hidden md:flex flex-1 max-w-md mx-2">
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              className="w-full flex items-center justify-between px-3.5 py-2 bg-stone-100/90 dark:bg-stone-800/80 hover:bg-stone-200/80 dark:hover:bg-stone-800 text-stone-500 dark:text-stone-400 rounded-xl border border-stone-200 dark:border-stone-700 text-xs transition-all cursor-pointer shadow-2xs group"
+              title="Search businesses, products, services, and tenders"
+            >
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+                <span className="text-stone-600 dark:text-stone-300 font-medium">Search Lusaka & Zambia...</span>
+              </div>
+              <span className="font-mono text-[10px] bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 px-1.5 py-0.5 rounded text-stone-400">
+                ⌘K
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Center Nav Links (Large Screens) */}
+        <nav className="hidden xl:flex items-center gap-1 text-xs font-semibold text-stone-700 dark:text-stone-300">
           <button
+            type="button"
             onClick={() => setCurrentTab('discover')}
-            className={`px-3 py-2 rounded-md transition-colors cursor-pointer ${
+            className={`px-3 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
               currentTab === 'discover'
-                ? 'bg-stone-800 text-emerald-400'
-                : 'text-stone-300 hover:text-white hover:bg-stone-800/60'
+                ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 font-bold'
+                : 'hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800'
             }`}
           >
-            Discovery
+            <Compass className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Discover</span>
           </button>
-          
+
           <button
+            type="button"
             onClick={() => setCurrentTab('businesses')}
-            className={`px-3 py-2 rounded-md transition-colors cursor-pointer ${
+            className={`px-3 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
               currentTab === 'businesses'
-                ? 'bg-stone-800 text-emerald-400'
-                : 'text-stone-300 hover:text-white hover:bg-stone-800/60'
+                ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 font-bold'
+                : 'hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800'
             }`}
           >
-            Businesses
+            <Store className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Shops</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setCurrentTab('professionals')}
-            className={`px-3 py-2 rounded-md transition-colors cursor-pointer ${
+            className={`px-3 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
               currentTab === 'professionals'
-                ? 'bg-stone-800 text-emerald-400'
-                : 'text-stone-300 hover:text-white hover:bg-stone-800/60'
+                ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 font-bold'
+                : 'hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800'
             }`}
           >
-            Professionals
+            <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Pros</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setCurrentTab('events')}
-            className={`px-3 py-2 rounded-md transition-colors cursor-pointer ${
+            className={`px-3 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
               currentTab === 'events'
-                ? 'bg-stone-800 text-emerald-400'
-                : 'text-stone-300 hover:text-white hover:bg-stone-800/60'
+                ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 font-bold'
+                : 'hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800'
             }`}
           >
-            Events
+            <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Events</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setCurrentTab('opportunities')}
-            className={`px-3 py-2 rounded-md transition-colors cursor-pointer ${
+            className={`px-3 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
               currentTab === 'opportunities'
-                ? 'bg-stone-800 text-emerald-400'
-                : 'text-stone-300 hover:text-white hover:bg-stone-800/60'
+                ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 font-bold'
+                : 'hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800'
             }`}
           >
-            Opportunities
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span>Opportunities</span>
           </button>
 
-          {/* Saved / Favorites Link */}
           <button
+            type="button"
             onClick={() => setCurrentTab('favorites')}
-            className={`px-3 py-2 rounded-md transition-colors flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
               currentTab === 'favorites'
-                ? 'bg-stone-800 text-amber-400 font-semibold'
-                : 'text-stone-300 hover:text-white hover:bg-stone-800/60'
+                ? 'bg-amber-50 dark:bg-stone-800 text-amber-700 dark:text-amber-400 font-bold'
+                : 'hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800'
             }`}
+            title="Saved businesses"
           >
-            <Bookmark className="w-3.5 h-3.5 fill-current text-amber-400" />
+            <Bookmark className="w-4 h-4 text-amber-500 fill-amber-500/20" />
             <span>Saved</span>
             {savedCount > 0 && (
-              <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 rounded-full font-bold">
+              <span className="font-mono text-[10px] bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold px-1.5 py-0.2 rounded-full">
                 {savedCount}
               </span>
             )}
           </button>
 
           <button
+            type="button"
             onClick={() => setCurrentTab('architecture')}
-            className={`px-3 py-2 rounded-md transition-colors flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
               currentTab === 'architecture'
-                ? 'bg-stone-800 text-emerald-400'
-                : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/60'
+                ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 font-bold'
+                : 'text-stone-500 hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800'
             }`}
           >
-            <Layers className="w-4 h-4 text-emerald-400" />
-            <span>Architecture & DB Spec</span>
+            <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Spec</span>
           </button>
-
-          {onOpenApiConsole && (
-            <button
-              onClick={onOpenApiConsole}
-              className="px-3 py-2 rounded-md transition-colors flex items-center gap-1.5 cursor-pointer text-stone-400 hover:text-emerald-300 hover:bg-stone-800/60"
-              title="Open REST API v1 interactive testing console"
-            >
-              <span className="font-mono text-xs text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-1 rounded font-bold">API</span>
-              <span>REST v1</span>
-            </button>
-          )}
         </nav>
 
-        {/* Zone 3: Actions & Quick Tools */}
-        <div className="flex items-center gap-2.5">
+        {/* Right: Quick Tools (Search on mobile, Theme, Notifications, Cart, Auth & Logout) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Mobile Search Icon Button */}
+          {onOpenSearch && (
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              className="md:hidden p-2 rounded-xl text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-800 transition-colors cursor-pointer"
+              title="Search businesses & items"
+              aria-label="Search"
+            >
+              <Search className="w-4.5 h-4.5 text-stone-800 dark:text-stone-200" />
+            </button>
+          )}
+
+          {/* Theme Toggle (Strict manual switch between light and dark) */}
           <button
+            type="button"
             onClick={toggleTheme}
             aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            className="p-2 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800 transition-all cursor-pointer flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className="p-2 sm:p-2.5 rounded-xl text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-800 transition-all cursor-pointer flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+            title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
           >
             {isDark ? (
-              <Sun className="w-4 h-4 text-amber-300 transition-transform hover:rotate-45" />
+              <Sun className="w-4.5 h-4.5 text-amber-400 transition-transform hover:rotate-45" />
             ) : (
-              <Moon className="w-4 h-4 text-stone-300 transition-transform hover:-rotate-12" />
+              <Moon className="w-4.5 h-4.5 text-stone-700 transition-transform hover:-rotate-12" />
             )}
           </button>
 
+          {/* Notifications Trigger */}
           <button
+            type="button"
             onClick={onOpenNotifications}
-            className="relative p-2 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
-            title="Updates & Alerts"
+            className="relative p-2 sm:p-2.5 rounded-xl text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-800 transition-colors cursor-pointer"
+            title="Platform updates & alerts"
+            aria-label="Notifications"
           >
-            <Bell className="w-5 h-5" />
+            <Bell className="w-4.5 h-4.5 text-stone-800 dark:text-stone-200" />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-stone-900" />
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-stone-900" />
             )}
           </button>
 
-          {/* Business Login Button */}
-          {isAuthenticated && isBusinessOwner ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentTab('business_dashboard')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/80 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                title="Go to Business Dashboard"
-              >
-                <Store className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">My Business</span>
-                <span className="sm:hidden">Dashboard</span>
-              </button>
+          {/* Cart Trigger */}
+          {onOpenCart && (
+            <button
+              type="button"
+              onClick={onOpenCart}
+              className="relative p-2 sm:p-2.5 rounded-xl text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-800 hover:border-emerald-500 transition-colors cursor-pointer flex items-center justify-center"
+              title="Shopping Cart & Mobile Money Checkout"
+              aria-label="Shopping Cart"
+            >
+              <ShoppingBag className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400" />
+              {totalItems > 0 && (
+                <span className="absolute -top-1 -right-1 px-1.5 py-0.2 min-w-4 text-[10px] font-mono font-bold bg-emerald-600 text-white rounded-full text-center shadow-xs">
+                  {totalItems}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Authenticated User / Business Actions */}
+          {isAuthenticated ? (
+            <div className="flex items-center gap-1.5">
+              {/* If Regular User */}
+              {currentRole === 'user' && (
+                <button
+                  type="button"
+                  onClick={() => setCurrentTab('user_dashboard')}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                    currentTab === 'user_dashboard'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/80 hover:bg-emerald-100'
+                  }`}
+                  title="My Profile & Verification Dashboard"
+                >
+                  <User className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="hidden sm:inline">Profile</span>
+                  {!isNrcVerified && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="NRC Verification Needed" />
+                  )}
+                </button>
+              )}
+
+              {/* If Business Owner */}
+              {isBusinessOwner && (
+                <button
+                  type="button"
+                  onClick={() => setCurrentTab('business_dashboard')}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                    currentTab === 'business_dashboard'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/80 hover:bg-emerald-100'
+                  }`}
+                  title="Manage Business Catalog & Orders"
+                >
+                  <Store className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="hidden sm:inline">My Biz</span>
+                </button>
+              )}
+
+              {/* If Admin */}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setCurrentTab('admin_dashboard')}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                    currentTab === 'admin_dashboard'
+                      ? 'bg-rose-600 text-white'
+                      : 'bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 hover:bg-rose-100'
+                  }`}
+                  title="Open Admin Verification Desk"
+                >
+                  <ShieldCheck className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <span className="hidden sm:inline">Admin</span>
+                </button>
+              )}
+
+              {/* Universal Log Out Button */}
               {onSignOut && (
                 <button
+                  type="button"
                   onClick={onSignOut}
-                  className="p-1.5 text-stone-400 hover:text-rose-400 hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
-                  title="Sign out of merchant session"
+                  className="flex items-center gap-1.5 px-2.5 py-2 text-stone-600 dark:text-stone-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 border border-stone-200 dark:border-stone-800 hover:border-rose-300 dark:hover:border-rose-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                  title="Log out of your account"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span className="hidden md:inline">Log Out</span>
                 </button>
               )}
             </div>
           ) : (
-            <button
-              onClick={onOpenBusinessLogin}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-all shadow-sm cursor-pointer whitespace-nowrap"
-              title="Merchant Portal Login"
-            >
-              <Store className="w-3.5 h-3.5" />
-              <span>Business Login</span>
-            </button>
-          )}
+            <div className="flex items-center gap-1.5">
+              {/* Sign In Button */}
+              <button
+                type="button"
+                onClick={onOpenAuth}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm hover:shadow-md"
+                title="Sign In or Register with Google, Phone, or Email"
+              >
+                <LogIn className="w-4 h-4 shrink-0" />
+                <span>Sign In</span>
+              </button>
 
-          {/* Dedicated Admin Portal Button */}
-          {currentRole === 'admin' ? (
-            <button
-              onClick={() => setCurrentTab('admin_dashboard')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                currentTab === 'admin_dashboard'
-                  ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400/50'
-                  : 'bg-rose-950/70 hover:bg-rose-900 text-rose-300 border border-rose-800'
-              }`}
-              title="Open Admin Verification Console"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
-              <span className="hidden sm:inline">Admin Desk</span>
-              <span className="sm:hidden">Admin</span>
-            </button>
-          ) : (
-            <button
-              onClick={onOpenAdminGate}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-stone-800/90 hover:bg-rose-950/80 text-stone-300 hover:text-rose-300 border border-stone-700 hover:border-rose-700/80 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap"
-              title="PACRA & ZRA Compliance Officer Portal"
-            >
-              <Lock className="w-3.5 h-3.5 text-stone-400 group-hover:text-rose-400" />
-              <span className="hidden sm:inline">Admin Gate</span>
-            </button>
+              {/* Business Portal Login (Desktop) */}
+              <button
+                type="button"
+                onClick={onOpenBusinessLogin}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap"
+                title="Merchant & Business Portal Login"
+              >
+                <Store className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Business</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Mobile navigation tab strip */}
-      <div className="lg:hidden flex items-center overflow-x-auto px-4 py-2 border-t border-stone-800 bg-stone-900 text-xs gap-2 no-scrollbar">
+      {/* 3. Mobile Navigation Tab Strip (All icons visible, well-arranged, clean horizontal scroll) */}
+      <div className="xl:hidden flex items-center overflow-x-auto px-3 py-2 border-t border-stone-200 dark:border-stone-800 bg-stone-50/95 dark:bg-stone-900/95 text-xs gap-1.5 no-scrollbar transition-colors duration-200">
         <button
+          type="button"
           onClick={() => setCurrentTab('discover')}
-          className={`px-3 py-1 rounded-full whitespace-nowrap cursor-pointer ${
-            currentTab === 'discover' ? 'bg-emerald-600 text-white font-bold' : 'text-stone-300'
+          className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 font-medium shrink-0 ${
+            currentTab === 'discover'
+              ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+              : 'text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700'
           }`}
         >
-          Discover
+          <Compass className="w-4 h-4 shrink-0" />
+          <span>Discover</span>
         </button>
+
         <button
+          type="button"
           onClick={() => setCurrentTab('businesses')}
-          className={`px-3 py-1 rounded-full whitespace-nowrap cursor-pointer ${
-            currentTab === 'businesses' ? 'bg-emerald-600 text-white font-bold' : 'text-stone-300'
+          className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 font-medium shrink-0 ${
+            currentTab === 'businesses'
+              ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+              : 'text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700'
           }`}
         >
-          Businesses
+          <Store className="w-4 h-4 shrink-0" />
+          <span>Shops</span>
         </button>
+
         <button
+          type="button"
           onClick={() => setCurrentTab('professionals')}
-          className={`px-3 py-1 rounded-full whitespace-nowrap cursor-pointer ${
-            currentTab === 'professionals' ? 'bg-emerald-600 text-white font-bold' : 'text-stone-300'
+          className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 font-medium shrink-0 ${
+            currentTab === 'professionals'
+              ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+              : 'text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700'
           }`}
         >
-          Pros
+          <Briefcase className="w-4 h-4 shrink-0" />
+          <span>Pros</span>
         </button>
+
         <button
+          type="button"
           onClick={() => setCurrentTab('events')}
-          className={`px-3 py-1 rounded-full whitespace-nowrap cursor-pointer ${
-            currentTab === 'events' ? 'bg-emerald-600 text-white font-bold' : 'text-stone-300'
+          className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 font-medium shrink-0 ${
+            currentTab === 'events'
+              ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+              : 'text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700'
           }`}
         >
-          Events
+          <Calendar className="w-4 h-4 shrink-0" />
+          <span>Events</span>
         </button>
+
         <button
+          type="button"
           onClick={() => setCurrentTab('opportunities')}
-          className={`px-3 py-1 rounded-full whitespace-nowrap cursor-pointer ${
-            currentTab === 'opportunities' ? 'bg-emerald-600 text-white font-bold' : 'text-stone-300'
+          className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 font-medium shrink-0 ${
+            currentTab === 'opportunities'
+              ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+              : 'text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700'
           }`}
         >
-          Opportunities
+          <Sparkles className="w-4 h-4 shrink-0 text-amber-500" />
+          <span>Opportunities</span>
         </button>
 
         <button
+          type="button"
           onClick={() => setCurrentTab('favorites')}
-          className={`px-3 py-1 rounded-full whitespace-nowrap cursor-pointer flex items-center gap-1 ${
-            currentTab === 'favorites' ? 'bg-amber-600 text-white font-bold' : 'text-amber-400'
+          className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer flex items-center gap-1.5 font-medium transition-colors shrink-0 ${
+            currentTab === 'favorites'
+              ? 'bg-amber-600 text-white font-bold shadow-2xs'
+              : 'text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-stone-800/80 border border-amber-200 dark:border-stone-700'
           }`}
         >
+          <Bookmark className="w-4 h-4 shrink-0 text-amber-500" />
           <span>Saved</span>
-          {savedCount > 0 && <span>({savedCount})</span>}
+          {savedCount > 0 && <span className="text-[11px] font-bold">({savedCount})</span>}
         </button>
 
-        <button
-          onClick={() => setCurrentTab('architecture')}
-          className={`px-3 py-1 rounded-full whitespace-nowrap cursor-pointer ${
-            currentTab === 'architecture' ? 'bg-emerald-600 text-white font-bold' : 'text-stone-400'
-          }`}
-        >
-          Architecture
-        </button>
-
-        {isAuthenticated && isBusinessOwner ? (
+        {/* User Account / Sign In Tab on Mobile */}
+        {isAuthenticated && currentRole === 'user' ? (
           <button
-            onClick={() => setCurrentTab('business_dashboard')}
-            className={`px-3 py-1 rounded-full whitespace-nowrap cursor-pointer ${
-              currentTab === 'business_dashboard' ? 'bg-emerald-700 text-white font-bold' : 'text-emerald-400 font-semibold'
+            type="button"
+            onClick={() => setCurrentTab('user_dashboard')}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer flex items-center gap-1.5 font-medium transition-colors shrink-0 ${
+              currentTab === 'user_dashboard'
+                ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-stone-800/80 border border-emerald-200 dark:border-stone-700'
             }`}
           >
-            My Biz
+            <User className="w-4 h-4 shrink-0" />
+            <span>Profile</span>
+          </button>
+        ) : !isAuthenticated ? (
+          <button
+            type="button"
+            onClick={onOpenAuth}
+            className="px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer flex items-center gap-1.5 font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors shrink-0 shadow-2xs"
+          >
+            <LogIn className="w-4 h-4 shrink-0" />
+            <span>Sign In</span>
+          </button>
+        ) : null}
+
+        {/* Business Portal Link */}
+        {isAuthenticated && isBusinessOwner ? (
+          <button
+            type="button"
+            onClick={() => setCurrentTab('business_dashboard')}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer flex items-center gap-1.5 font-medium transition-colors shrink-0 ${
+              currentTab === 'business_dashboard'
+                ? 'bg-emerald-700 text-white font-bold shadow-2xs'
+                : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-stone-800/80 border border-emerald-300 dark:border-stone-700'
+            }`}
+          >
+            <Store className="w-4 h-4 shrink-0" />
+            <span>My Biz</span>
           </button>
         ) : (
           <button
+            type="button"
             onClick={onOpenBusinessLogin}
-            className="px-3 py-1 rounded-full whitespace-nowrap cursor-pointer bg-emerald-700 text-white font-semibold"
+            className="px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer flex items-center gap-1.5 font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 hover:bg-stone-100 transition-colors shrink-0"
           >
-            Biz Login
+            <Store className="w-4 h-4 shrink-0 text-emerald-600" />
+            <span>Biz Login</span>
           </button>
         )}
 
+        {/* Admin Desk Link */}
         <button
-          onClick={currentRole === 'admin' ? () => setCurrentTab('admin_dashboard') : onOpenAdminGate}
-          className={`px-3 py-1 rounded-full whitespace-nowrap cursor-pointer flex items-center gap-1 ${
+          type="button"
+          onClick={isAdmin ? () => setCurrentTab('admin_dashboard') : onOpenAdminGate}
+          className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer flex items-center gap-1.5 font-medium transition-colors shrink-0 ${
             currentTab === 'admin_dashboard'
-              ? 'bg-rose-600 text-white font-bold'
-              : 'text-rose-400 bg-rose-950/40 border border-rose-800/60'
+              ? 'bg-rose-600 text-white font-bold shadow-2xs'
+              : 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60'
           }`}
         >
-          <Lock className="w-3 h-3 text-rose-400" />
+          <Lock className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
           <span>Admin</span>
         </button>
 
+        {/* Architecture Spec */}
         <button
-          onClick={toggleTheme}
-          aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          className="px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer flex items-center gap-1 text-stone-300 bg-stone-800/80 border border-stone-700 hover:text-white"
+          type="button"
+          onClick={() => setCurrentTab('architecture')}
+          className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 font-medium shrink-0 ${
+            currentTab === 'architecture'
+              ? 'bg-stone-800 text-white font-bold'
+              : 'text-stone-600 dark:text-stone-400 bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700'
+          }`}
         >
-          {isDark ? <Sun className="w-3 h-3 text-amber-300" /> : <Moon className="w-3 h-3 text-stone-300" />}
-          <span>{isDark ? 'Light' : 'Dark'}</span>
+          <Layers className="w-4 h-4 shrink-0" />
+          <span>Spec</span>
         </button>
+
+        {/* Mobile Log Out Button when Authenticated */}
+        {isAuthenticated && onSignOut && (
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-xs font-bold flex items-center gap-1.5 shadow-2xs shrink-0 hover:bg-rose-100"
+            title="Log out of session"
+          >
+            <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
+            <span>Log Out</span>
+          </button>
+        )}
       </div>
     </header>
   );

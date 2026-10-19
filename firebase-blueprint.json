@@ -28,6 +28,101 @@
       },
       "required": ["id", "name", "categoryName", "verificationStatus", "phone", "whatsapp", "city", "province"]
     },
+    "Category": {
+      "title": "Category",
+      "description": "Economic discovery sector classification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "iconName": { "type": "string" },
+        "description": { "type": "string" },
+        "count": { "type": "number" }
+      },
+      "required": ["id", "name", "slug"]
+    },
+    "Professional": {
+      "title": "Professional",
+      "description": "Certified trade specialist, engineer, doctor or legal counsel",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "title": { "type": "string" },
+        "avatar": { "type": "string" },
+        "city": { "type": "string" },
+        "province": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "bio": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" }
+      },
+      "required": ["id", "name", "title", "city", "phone", "whatsapp"]
+    },
+    "EventItem": {
+      "title": "EventItem",
+      "description": "Civic, business, expo or entertainment event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "organizer": { "type": "string" },
+        "category": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "locationName": { "type": "string" },
+        "city": { "type": "string" },
+        "description": { "type": "string" },
+        "ticketPrice": { "type": "number" },
+        "ticketCurrency": { "type": "string" },
+        "contactPhone": { "type": "string" }
+      },
+      "required": ["id", "title", "organizer", "date", "locationName", "city"]
+    },
+    "OpportunityItem": {
+      "title": "OpportunityItem",
+      "description": "Job posting, tender, contract or grant opportunity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "organization": { "type": "string" },
+        "type": { "type": "string" },
+        "location": { "type": "string" },
+        "deadline": { "type": "string" },
+        "description": { "type": "string" },
+        "applyUrlOrContact": { "type": "string" },
+        "isVerifiedOrg": { "type": "boolean" }
+      },
+      "required": ["id", "title", "organization", "type", "location", "deadline"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Marketplace commerce purchase with MTN/Airtel MoMo split & tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "businessId": { "type": "string" },
+        "businessName": { "type": "string" },
+        "subtotal": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "platformSplitFee": { "type": "number" },
+        "merchantPayout": { "type": "number" },
+        "total": { "type": "number" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "deliveryAddress": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "orderStatus": { "type": "string" },
+        "trackingNumber": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "businessId", "total", "customerName", "customerPhone", "deliveryAddress", "paymentMethod", "orderStatus"]
+    },
     "Review": {
       "title": "Review",
       "description": "User feedback and rating for a business",
@@ -119,9 +214,101 @@
         "isMajorCity": { "type": "boolean" }
       },
       "required": ["id", "name", "countryCode"]
+    },
+    "CourierDriver": {
+      "title": "CourierDriver",
+      "description": "Last-mile courier driver or rider in Zambia logistics fleet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "vehicleType": { "type": "string" },
+        "vehiclePlate": { "type": "string" },
+        "rating": { "type": "number" },
+        "status": { "type": "string" },
+        "completedTrips": { "type": "number" }
+      },
+      "required": ["id", "name", "phone", "vehicleType", "status"]
+    },
+    "RideRequest": {
+      "title": "RideRequest",
+      "description": "Point-to-point passenger ride dispatch trip",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "passengerName": { "type": "string" },
+        "passengerPhone": { "type": "string" },
+        "pickupLocation": { "type": "string" },
+        "dropoffLocation": { "type": "string" },
+        "distanceKm": { "type": "number" },
+        "totalFare": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "passengerName", "passengerPhone", "pickupLocation", "dropoffLocation", "totalFare", "status"]
+    },
+    "BwanaWalletTransaction": {
+      "title": "BwanaWalletTransaction",
+      "description": "Ledger entry for merchant payout, keep-change float or MoMo transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "fee": { "type": "number" },
+        "netAmount": { "type": "number" },
+        "status": { "type": "string" },
+        "reference": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "type", "amount", "status", "reference"]
+    },
+    "ScoutRecord": {
+      "title": "ScoutRecord",
+      "description": "Field agent onboarding submission for informal market vendor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "shopName": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "compound": { "type": "string" },
+        "city": { "type": "string" },
+        "category": { "type": "string" },
+        "scoutName": { "type": "string" },
+        "bountyZMW": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "shopName", "phone", "compound", "city", "scoutName"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered customer profile with authentication provider and NRC biometric verification status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "authProvider": { "type": "string", "enum": ["google", "facebook", "phone", "email"] },
+        "role": { "type": "string" },
+        "isNrcVerified": { "type": "boolean" },
+        "nrcNumber": { "type": "string" },
+        "verificationStatus": { "type": "string", "enum": ["unverified", "pending", "verified", "rejected"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "authProvider", "isNrcVerified"]
     }
   },
   "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User account and identity verification records"
+    },
     "/countries/{countryCode}": {
       "schema": "Country",
       "description": "Geographic country markets supporting pan-African expansion"
@@ -130,9 +317,29 @@
       "schema": "CityTown",
       "description": "Standardized hierarchical towns and municipalities"
     },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Economic sectors and marketplace category counts"
+    },
     "/businesses/{businessId}": {
       "schema": "Business",
       "description": "Public verified directory of businesses, products, services and attributes"
+    },
+    "/professionals/{professionalId}": {
+      "schema": "Professional",
+      "description": "Directory of certified tradespeople, consultants and technical professionals"
+    },
+    "/events/{eventId}": {
+      "schema": "EventItem",
+      "description": "Local civic, corporate, and social events and ticketing"
+    },
+    "/opportunities/{opportunityId}": {
+      "schema": "OpportunityItem",
+      "description": "Public tenders, contracts, and employment listings"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Real-time customer and merchant marketplace orders"
     },
     "/reviews/{reviewId}": {
       "schema": "Review",
@@ -149,6 +356,23 @@
     "/notifications/{notificationId}": {
       "schema": "Notification",
       "description": "Real-time user and merchant notifications"
+    },
+    "/couriers/{courierId}": {
+      "schema": "CourierDriver",
+      "description": "Real-time courier GPS coordinates and delivery status"
+    },
+    "/rides/{rideId}": {
+      "schema": "RideRequest",
+      "description": "Passenger point-to-point ride booking requests"
+    },
+    "/walletTransactions/{transactionId}": {
+      "schema": "BwanaWalletTransaction",
+      "description": "Customer and vendor wallet transaction ledger"
+    },
+    "/scouts/{scoutId}": {
+      "schema": "ScoutRecord",
+      "description": "Bwana Scout informal shop onboarding registry"
     }
   }
 }
+

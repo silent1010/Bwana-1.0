@@ -19,9 +19,10 @@ import {
   X,
   Upload,
   Eye,
-  Maximize2
+  Maximize2,
+  Lock
 } from 'lucide-react';
-import { Business, BusinessReview, UserRole } from '../../types';
+import { Business, BusinessReview, UserRole, UserAccount } from '../../types';
 
 interface BusinessReviewsSectionProps {
   business: Business;
@@ -41,8 +42,11 @@ interface BusinessReviewsSectionProps {
     email: string;
     name: string;
     role: UserRole;
+    isNrcVerified?: boolean;
+    userAccount?: UserAccount | null;
   };
   onRequireLogin: () => void;
+  onStartNrcVerification?: () => void;
 }
 
 const REVIEW_TAGS = [
@@ -63,6 +67,7 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
   onHelpfulVote,
   currentUser,
   onRequireLogin,
+  onStartNrcVerification,
 }) => {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [selectedRating, setSelectedRating] = useState<number>(5);
@@ -218,10 +223,13 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
     const primaryPhoto = attachedPhotos.length > 0 ? attachedPhotos[0] : undefined;
     const allPhotos = attachedPhotos.length > 0 ? attachedPhotos : undefined;
 
+    // Unverified registered users can give reviews, but cannot rate (effectiveRating = 0)
+    const effectiveRating = isVerifiedReviewer ? selectedRating : 0;
+
     setTimeout(() => {
       onAddReview(
         business.id,
-        selectedRating,
+        effectiveRating,
         comment.trim(),
         selectedTags,
         verifiedVisit,
@@ -235,7 +243,11 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
       setCustomPhotoUrl('');
       setIsSubmitting(false);
       setShowReviewForm(false);
-      setSuccessMessage('✓ Review published successfully with attached photos! Your rating has updated the merchant profile.');
+      setSuccessMessage(
+        isVerifiedReviewer
+          ? '✓ Rating & review published successfully! Verified with NRC biometric badge.'
+          : '✓ Customer review submitted successfully! Note: 1-5 star ratings unlock upon completing NRC & facial verification in your dashboard.'
+      );
       setTimeout(() => setSuccessMessage(null), 5000);
     }, 300);
   };
@@ -253,11 +265,22 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
     setShowReportModal(null);
   };
 
+  const isVerifiedReviewer = currentUser.isAuthenticated && Boolean(currentUser.isNrcVerified);
+
+  const handleCtaClick = () => {
+    if (!currentUser.isAuthenticated) {
+      onRequireLogin();
+      return;
+    }
+    // Registered users (verified or unverified) can write reviews!
+    setShowReviewForm(!showReviewForm);
+  };
+
   return (
     <div className="space-y-6">
       {/* Success Notification Alert */}
       {successMessage && (
-        <div className="p-4 bg-emerald-600 text-white rounded-2xl flex items-center justify-between text-xs font-semibold shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="p-4 bg-emerald-600 text-white rounded-2xl flex items-center justify-between text-xs font-semibold shadow-md animate-in fade-in slide-from-top-2 duration-200">
           <div className="flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-emerald-200 shrink-0" />
             <span>{successMessage}</span>
@@ -313,7 +336,7 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
             </div>
           </div>
 
-          {/* Call to Action: Write a review */}
+          {/* Call to Action: Write a review (Public users cannot review/rate; Registered can review; Verified can review+rate) */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
             {showReviewForm ? (
               <button
@@ -323,17 +346,110 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
               >
                 Close Review Form
               </button>
+            ) : isVerifiedReviewer ? (
+              <button
+                type="button"
+                onClick={handleCtaClick}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer hover:shadow-lg"
+              >
+                <Star className="w-4 h-4 fill-white" />
+                <span>Write Review & Rate (1-5★)</span>
+              </button>
+            ) : currentUser.isAuthenticated ? (
+              <button
+                type="button"
+                onClick={handleCtaClick}
+                className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                title="Registered users can write reviews. Star ratings unlock after NRC verification."
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Write a Customer Review</span>
+              </button>
             ) : (
               <button
                 type="button"
-                onClick={() => setShowReviewForm(true)}
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                onClick={handleCtaClick}
+                className="px-5 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                title="Sign in with Google, Facebook, Phone, or Email to review"
               >
-                <Star className="w-4 h-4 fill-white" />
-                <span>Write a Customer Review</span>
+                <LogIn className="w-4 h-4 text-emerald-400" />
+                <span>Sign In to Review & Rate</span>
               </button>
             )}
           </div>
+        </div>
+
+        {/* User Type Privileges Banner */}
+        <div className="mt-5 pt-4 border-t border-stone-200">
+          {!currentUser.isAuthenticated ? (
+            <div className="p-3 bg-stone-100 rounded-xl border border-stone-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-stone-200 text-stone-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <User className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 font-bold text-stone-800">
+                    <span>Public Viewer Account</span>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-stone-200 text-stone-600 rounded font-mono font-normal">
+                      Tier 1: Read-Only
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 mt-0.5">
+                    You can view businesses and opportunities, but cannot rate or write a review. Sign in or register to share customer feedback.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onRequireLogin}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Register / Sign In</span>
+              </button>
+            </div>
+          ) : !isVerifiedReviewer ? (
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 font-bold text-amber-950">
+                    <span>Registered Member ({currentUser.name})</span>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 text-amber-800 rounded font-mono font-normal">
+                      Tier 2: Limited Permissions
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 mt-0.5">
+                    ✓ You can write customer reviews & comments! Star ratings (1-5★), order checkout, and delivery access require NRC document & biometric verification in your dashboard.
+                  </p>
+                </div>
+              </div>
+              {onStartNrcVerification && (
+                <button
+                  type="button"
+                  onClick={onStartNrcVerification}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Verify NRC & Face</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-xs text-emerald-900">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="text-[11px]">
+                  <strong>Verified Citizen Reviewer:</strong> NRC & Biometric identity verified. Full access to rate merchants (1-5★), write reviews, place orders, and request deliveries.
+                </span>
+              </div>
+              <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded font-mono font-bold">
+                Tier 3: Full Access
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 5-Star Distribution Bars */}
@@ -404,40 +520,78 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
             </div>
           </div>
 
-          {/* Interactive Star Rating Selector */}
+          {/* Interactive Star Rating Selector (Gated: Verified Users Only) */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-stone-900 uppercase tracking-wider">
-              Your Overall Rating *
-            </label>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex gap-1.5" onMouseLeave={handleRatingLeave}>
-                {[1, 2, 3, 4, 5].map((star) => {
-                  const activeStar = hoverRating ? star <= hoverRating : star <= selectedRating;
-                  return (
-                    <button
-                      key={star}
-                      type="button"
-                      onMouseEnter={() => handleRatingHover(star)}
-                      onClick={() => setSelectedRating(star)}
-                      className="p-1 hover:scale-125 transition-transform cursor-pointer focus:outline-none"
-                      title={`${star} Star`}
-                    >
-                      <Star
-                        className={`w-7 h-7 ${
-                          activeStar
-                            ? 'fill-amber-400 text-amber-400 drop-shadow-xs'
-                            : 'text-stone-300 hover:text-amber-200'
-                        }`}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-
-              <span className="text-xs font-bold font-mono text-stone-700 bg-stone-100 px-3 py-1 rounded-lg">
-                {getRatingLabel(hoverRating || selectedRating)}
-              </span>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-stone-900 uppercase tracking-wider">
+                Overall Star Rating (1-5★)
+              </label>
+              {!isVerifiedReviewer ? (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold border border-amber-300 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-amber-600" />
+                  <span>Rating Locked</span>
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold border border-emerald-300 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  <span>Verified Rating Enabled</span>
+                </span>
+              )}
             </div>
+
+            {!isVerifiedReviewer ? (
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+                <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-amber-950">
+                    Star ratings (1 to 5★) require NRC & facial verification
+                  </p>
+                  <p className="text-[11px] text-amber-800">
+                    As a registered user, you can share your written feedback and comments below! To rate businesses and impact their overall rating, verify your NRC in your dashboard.
+                  </p>
+                  {onStartNrcVerification && (
+                    <button
+                      type="button"
+                      onClick={onStartNrcVerification}
+                      className="mt-1 inline-flex items-center gap-1 text-xs text-amber-900 font-bold underline hover:text-amber-950 cursor-pointer"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Verify NRC & Face in Dashboard</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex gap-1.5" onMouseLeave={handleRatingLeave}>
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const activeStar = hoverRating ? star <= hoverRating : star <= selectedRating;
+                    return (
+                      <button
+                        key={star}
+                        type="button"
+                        onMouseEnter={() => handleRatingHover(star)}
+                        onClick={() => setSelectedRating(star)}
+                        className="p-1 hover:scale-125 transition-transform cursor-pointer focus:outline-none"
+                        title={`${star} Star`}
+                      >
+                        <Star
+                          className={`w-7 h-7 ${
+                            activeStar
+                              ? 'fill-amber-400 text-amber-400 drop-shadow-xs'
+                              : 'text-stone-300 hover:text-amber-200'
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <span className="text-xs font-bold font-mono text-stone-700 bg-stone-100 px-3 py-1 rounded-lg">
+                  {getRatingLabel(hoverRating || selectedRating)}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Experience Highlight Tags */}
@@ -763,14 +917,26 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-bold text-stone-900 text-xs sm:text-sm">
                           {rev.userName}
                         </span>
-                        {rev.verifiedVisit && (
+                        {rev.isNrcVerified ? (
+                          <span className="text-[10px] text-emerald-800 font-bold bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                            <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                            <span>NRC & Biometric Verified</span>
+                            {rev.nrcNumberMasked && (
+                              <span className="font-mono text-emerald-700">({rev.nrcNumberMasked})</span>
+                            )}
+                          </span>
+                        ) : rev.verifiedVisit ? (
                           <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Check className="w-2.5 h-2.5" />
                             <span>Verified Customer</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-stone-600 font-medium bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-full">
+                            Registered Member
                           </span>
                         )}
                       </div>
@@ -783,21 +949,30 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
                     </div>
                   </div>
 
-                  {/* Stars Display */}
+                  {/* Stars Display or Unrated Feedback Badge */}
                   <div className="flex items-center gap-1.5 self-start sm:self-auto">
-                    <div className="flex text-amber-400">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <Star
-                          key={s}
-                          className={`w-4 h-4 ${
-                            s <= rev.rating ? 'fill-amber-400 text-amber-400' : 'text-stone-200'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <span className="text-xs font-mono font-bold text-stone-700">
-                      {rev.rating}.0
-                    </span>
+                    {rev.rating > 0 ? (
+                      <>
+                        <div className="flex text-amber-400">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={`w-4 h-4 ${
+                                s <= rev.rating ? 'fill-amber-400 text-amber-400' : 'text-stone-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs font-mono font-bold text-stone-700">
+                          {rev.rating}.0
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-[11px] font-medium text-stone-600 bg-stone-100 border border-stone-200 px-2.5 py-1 rounded-md flex items-center gap-1.5">
+                        <MessageSquare className="w-3 h-3 text-emerald-600" />
+                        <span>Customer Review</span>
+                      </span>
+                    )}
                   </div>
                 </div>
 

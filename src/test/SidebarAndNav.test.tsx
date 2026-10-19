@@ -4,6 +4,7 @@ import React from 'react';
 import { Navbar } from '../components/layout/Navbar';
 import { SidebarDrawer } from '../components/layout/SidebarDrawer';
 import { ThemeProvider } from '../context/ThemeContext';
+import { CartProvider } from '../context/CartContext';
 import { LocationArea } from '../types';
 
 const mockLocation: LocationArea = {
@@ -21,17 +22,19 @@ describe('Sidebar Drawer & Navbar Search Bar Isolation', () => {
   it('does NOT contain a search input or search button inside the Navbar', () => {
     const onOpenSearch = vi.fn();
     render(
-      <ThemeProvider>
-        <Navbar
-          currentTab="discover"
-          setCurrentTab={() => {}}
-          currentLocation={mockLocation}
-          onOpenLocationModal={() => {}}
-          onOpenSearch={onOpenSearch}
-          onOpenNotifications={() => {}}
-          unreadCount={0}
-        />
-      </ThemeProvider>
+      <CartProvider>
+        <ThemeProvider>
+          <Navbar
+            currentTab="discover"
+            setCurrentTab={() => {}}
+            currentLocation={mockLocation}
+            onOpenLocationModal={() => {}}
+            onOpenSearch={onOpenSearch}
+            onOpenNotifications={() => {}}
+            unreadCount={0}
+          />
+        </ThemeProvider>
+      </CartProvider>
     );
 
     // Search bar/button must NOT be in the navbar
@@ -45,17 +48,19 @@ describe('Sidebar Drawer & Navbar Search Bar Isolation', () => {
   it('provides a hamburger menu button in the Navbar that triggers onOpenSidebar', () => {
     const onOpenSidebar = vi.fn();
     render(
-      <ThemeProvider>
-        <Navbar
-          currentTab="discover"
-          setCurrentTab={() => {}}
-          currentLocation={mockLocation}
-          onOpenLocationModal={() => {}}
-          onOpenSidebar={onOpenSidebar}
-          onOpenNotifications={() => {}}
-          unreadCount={0}
-        />
-      </ThemeProvider>
+      <CartProvider>
+        <ThemeProvider>
+          <Navbar
+            currentTab="discover"
+            setCurrentTab={() => {}}
+            currentLocation={mockLocation}
+            onOpenLocationModal={() => {}}
+            onOpenSidebar={onOpenSidebar}
+            onOpenNotifications={() => {}}
+            unreadCount={0}
+          />
+        </ThemeProvider>
+      </CartProvider>
     );
 
     const menuBtn = screen.getByLabelText(/open sidebar menu/i);
@@ -70,18 +75,20 @@ describe('Sidebar Drawer & Navbar Search Bar Isolation', () => {
     const onClose = vi.fn();
 
     render(
-      <ThemeProvider>
-        <SidebarDrawer
-          isOpen={true}
-          onClose={onClose}
-          currentTab="discover"
-          setCurrentTab={setCurrentTab}
-          currentLocation={mockLocation}
-          onOpenLocationModal={() => {}}
-          onOpenNotifications={() => {}}
-          unreadCount={2}
-        />
-      </ThemeProvider>
+      <CartProvider>
+        <ThemeProvider>
+          <SidebarDrawer
+            isOpen={true}
+            onClose={onClose}
+            currentTab="discover"
+            setCurrentTab={setCurrentTab}
+            currentLocation={mockLocation}
+            onOpenLocationModal={() => {}}
+            onOpenNotifications={() => {}}
+            unreadCount={2}
+          />
+        </ThemeProvider>
+      </CartProvider>
     );
 
     expect(screen.getByText('Bwana Menu')).toBeDefined();

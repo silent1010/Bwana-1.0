@@ -1,4 +1,4 @@
-import { UserRole, UserCapabilities, StaffPermissionTier, StaffPermissionConfig } from '../types';
+import { UserRole, UserCapabilities, StaffPermissionTier, StaffPermissionConfig, UserAccount } from '../types';
 
 /**
  * Granular Role-Based Access Control (RBAC) definitions
@@ -295,3 +295,32 @@ ROLE_CAPABILITIES.bwana_staff = ROLE_CAPABILITIES.moderator;
 export function getCapabilitiesForRole(role: UserRole): UserCapabilities {
   return ROLE_CAPABILITIES[role] || ROLE_CAPABILITIES.public_user;
 }
+
+export interface UserAccessPermissions {
+  canBrowse: boolean;
+  canGiveReview: boolean;
+  canRateBusiness: boolean;
+  orderAccess: boolean;
+  deliveryAccess: boolean;
+  requiresNrcVerification: boolean;
+}
+
+/**
+ * Evaluates specific granular permissions for logged in users:
+ * - Unverified users: can give reviews, but cannot rate businesses (1-5 stars) and cannot access orders or deliveries.
+ * - Verified users: full rating impact, order checkout, and courier delivery access.
+ */
+export function getUserAccessPermissions(user: UserAccount | null | undefined): UserAccessPermissions {
+  const isAuth = Boolean(user);
+  const isVerified = Boolean(user?.isNrcVerified);
+
+  return {
+    canBrowse: true,
+    canGiveReview: isAuth,
+    canRateBusiness: isAuth && isVerified,
+    orderAccess: isAuth && isVerified,
+    deliveryAccess: isAuth && isVerified,
+    requiresNrcVerification: isAuth && !isVerified,
+  };
+}
+

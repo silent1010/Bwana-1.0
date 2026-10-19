@@ -96,6 +96,34 @@ export interface SystemUser {
   businessName?: string;
 }
 
+export type AuthProviderType = 'google' | 'facebook' | 'phone' | 'email';
+
+export interface UserNrcVerification {
+  nrcNumber: string; // e.g. "294812/67/1"
+  fullName: string;
+  dateOfBirth?: string;
+  nrcFrontUrl?: string;
+  nrcBackUrl?: string;
+  selfieUrl?: string;
+  facialMatchScore?: number; // e.g. 98.4
+  livenessVerified: boolean;
+  verifiedAt?: string;
+  status: 'unverified' | 'pending' | 'verified' | 'rejected';
+}
+
+export interface UserAccount {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  authProvider: AuthProviderType;
+  avatar?: string;
+  role: UserRole;
+  isNrcVerified: boolean;
+  nrcVerification?: UserNrcVerification;
+  createdAt: string;
+}
+
 export type VerificationStatus = 'unverified' | 'claimed' | 'verified';
 
 export type PriceType = 'fixed' | 'starting_from' | 'price_range' | 'contact_for_price' | 'negotiable';
@@ -234,6 +262,8 @@ export interface BusinessReview {
   createdAt: string;
   helpfulCount: number;
   verifiedVisit?: boolean;
+  isNrcVerified?: boolean;
+  nrcNumberMasked?: string;
   tags?: string[];
   response?: {
     comment: string;
@@ -286,6 +316,12 @@ export interface Business {
   hours: BusinessOpeningHours[];
   claimedByUserId?: string;
   isFeatured?: boolean;
+  verificationTier?: 'bwana_verified' | 'community_verified' | 'unverified';
+  isKantemba?: boolean;
+  isWholesaler?: boolean;
+  minOrderAmount?: number;
+  scoutOnboardedBy?: string;
+  bountyPaid?: boolean;
   products?: BusinessProduct[];
   services?: BusinessService[];
   promotions?: BusinessPromotion[];
@@ -400,3 +436,92 @@ export interface SearchQueryParams {
   openNowOnly?: boolean;
   sortBy?: 'distance' | 'rating' | 'popular';
 }
+
+export interface CourierDriver {
+  id: string;
+  name: string;
+  phone: string;
+  vehicleType: 'motorcycle' | 'bicycle' | 'van';
+  vehiclePlate: string;
+  rating: number;
+  currentLocation: LocationCoordinates;
+  status: 'available' | 'busy' | 'offline';
+  completedTrips: number;
+}
+
+export interface RideRequest {
+  id: string;
+  passengerName: string;
+  passengerPhone: string;
+  pickupLocation: string;
+  dropoffLocation: string;
+  distanceKm: number;
+  baseFare: number; // K20
+  perKmRate: number; // K4/km
+  totalFare: number;
+  status: 'requested' | 'driver_assigned' | 'in_progress' | 'completed' | 'cancelled';
+  driverId?: string;
+  driverName?: string;
+  createdAt: string;
+}
+
+export interface BwanaWalletTransaction {
+  id: string;
+  userId: string;
+  type: 'order_payment' | 'keep_change' | 'topup' | 'seller_payout' | 'scout_bounty' | 'cashout';
+  amount: number;
+  fee: number;
+  netAmount: number;
+  status: 'completed' | 'pending' | 'failed';
+  reference: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface ScoutOnboardingRecord {
+  id: string;
+  shopName: string;
+  ownerName: string;
+  phone: string;
+  compound: string;
+  city: string;
+  category: string;
+  scoutName: string;
+  bountyZMW: number;
+  status: 'verified' | 'pending_review';
+  audioNoteBemba?: string;
+  createdAt: string;
+}
+
+export interface CartItem {
+  product: BusinessProduct;
+  businessId: string;
+  businessName: string;
+  quantity: number;
+}
+
+export type PaymentMethod = 'mtn_momo' | 'airtel_money' | 'bwana_wallet' | 'cash_on_delivery';
+
+export interface Order {
+  id: string;
+  businessId: string;
+  businessName: string;
+  items: CartItem[];
+  subtotal: number;
+  deliveryFee: number;
+  platformSplitFee: number; // 1% Bwana platform split
+  merchantPayout: number;   // 99% payout to merchant
+  total: number;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  notes?: string;
+  paymentMethod: PaymentMethod;
+  paymentStatus: 'paid' | 'pending' | 'failed';
+  orderStatus: 'received' | 'accepted' | 'preparing' | 'in_transit' | 'delivered' | 'cancelled';
+  trackingNumber: string;
+  courierName?: string;
+  courierPhone?: string;
+  createdAt: string;
+}
+

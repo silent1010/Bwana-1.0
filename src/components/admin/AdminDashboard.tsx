@@ -25,7 +25,8 @@ import {
   Building,
   TrendingUp,
   BarChart3,
-  Calendar
+  Calendar,
+  Layers
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -39,6 +40,7 @@ import {
   AreaChart
 } from 'recharts';
 import { VerificationRequest, AuditLogEntry, Business } from '../../types';
+import { EngineeringSpec } from '../architecture/EngineeringSpec';
 
 interface AdminDashboardProps {
   businesses: Business[];
@@ -57,7 +59,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onRejectVerification,
   onNavigateToBusiness,
 }) => {
-  const [activeTab, setActiveTab] = useState<'verifications' | 'audit_logs' | 'overview'>('verifications');
+  const [activeTab, setActiveTab] = useState<'verifications' | 'audit_logs' | 'engineering_spec' | 'overview'>('verifications');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVerId, setSelectedVerId] = useState<string>(verifications[0]?.id || '');
@@ -400,6 +402,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         >
           <History className="w-3.5 h-3.5" />
           <span>Compliance Audit Trail ({auditLogs.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('engineering_spec')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'engineering_spec'
+              ? 'bg-stone-900 text-white shadow-2xs'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Engineering & Database Architecture</span>
         </button>
       </div>
 
@@ -835,6 +849,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ENGINEERING SPEC TAB (Moved from public view into authorized Admin portal) */}
+      {activeTab === 'engineering_spec' && (
+        <div className="space-y-6">
+          <div className="p-4 bg-stone-900 text-white rounded-2xl border border-stone-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-emerald-400" />
+              <div>
+                <h3 className="font-bold text-sm">PostgreSQL + PostGIS Architecture & Versioned Gateway</h3>
+                <p className="text-xs text-stone-400">Restricted administrative and developer clearance</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/40">
+              Admin Exclusive
+            </span>
+          </div>
+          <EngineeringSpec />
         </div>
       )}
 

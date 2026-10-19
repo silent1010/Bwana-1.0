@@ -4,7 +4,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, ShieldCheck, Store } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Store, Compass, Truck, ShoppingBag, User, Clock, X, LogOut } from 'lucide-react';
+import { useCart } from './context/CartContext';
+import {
+  checkIsSessionExpired,
+  recordUserActivity,
+  clearAllAuthSessions,
+  getStoredBusinessSession,
+  saveBusinessSession,
+} from './services/sessionTimeoutService';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
 import { HomeScreen } from './components/discovery/HomeScreen';
@@ -19,14 +27,24 @@ import { OpportunitiesList } from './components/opportunities/OpportunitiesList'
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { BusinessRegistrationPortal } from './components/business/BusinessRegistrationPortal';
 import { EngineeringSpec } from './components/architecture/EngineeringSpec';
+import { UserDashboard } from './components/user/UserDashboard';
 import { LocationPickerModal } from './components/common/LocationPickerModal';
 import { SearchEngineModal } from './components/common/SearchEngineModal';
 import { AuthModal } from './components/auth/AuthModal';
+import { UserAuthModal } from './components/auth/UserAuthModal';
+import { NrcFacialVerificationModal } from './components/auth/NrcFacialVerificationModal';
 import { BusinessLoginModal } from './components/auth/BusinessLoginModal';
 import { AdminGateModal } from './components/auth/AdminGateModal';
 import { NotificationsDrawer } from './components/common/NotificationsDrawer';
 import { ApiConsoleModal } from './components/common/ApiConsoleModal';
+import { CartDrawer } from './components/common/CartDrawer';
+import { BwanaScoutsModal } from './components/scouts/BwanaScoutsModal';
+import { CourierLogisticsModal } from './components/logistics/CourierLogisticsModal';
+import { WholesaleDirectoryModal } from './components/wholesalers/WholesaleDirectoryModal';
+import { BwanaWalletModal } from './components/wallet/BwanaWalletModal';
+import { QrStickerModal } from './components/common/QrStickerModal';
 import { SidebarDrawer } from './components/layout/SidebarDrawer';
+import { OfflineCacheBanner } from './components/common/OfflineCacheBanner';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 import {
@@ -42,6 +60,7 @@ import {
   AuditLogEntry,
   BusinessReview,
   SystemUser,
+  UserAccount,
 } from './types';
 
 import {
@@ -64,6 +83,9 @@ import {
   subscribeToVerifications,
   subscribeToAuditLogs,
   subscribeToNotifications,
+  subscribeToProfessionals,
+  subscribeToEvents,
+  subscribeToOpportunities,
   createBusinessInFirestore,
   updateBusinessInFirestore,
   createReviewInFirestore,
@@ -89,9 +111,9 @@ export default function App() {
   const [reviews, setReviews] = useState<BusinessReview[]>(INITIAL_REVIEWS);
   const [verifications, setVerifications] = useState<VerificationRequest[]>(INITIAL_VERIFICATIONS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
-  const [professionals] = useState<Professional[]>(INITIAL_PROFESSIONALS);
-  const [events] = useState<EventItem[]>(INITIAL_EVENTS);
-  const [opportunities] = useState<OpportunityItem[]>(INITIAL_OPPORTUNITIES);
+  const [professionals, setProfessionals] = useState<Professional[]>(INITIAL_PROFESSIONALS);
+  const [events, setEvents] = useState<EventItem[]>(INITIAL_EVENTS);
+  const [opportunities, setOpportunities] = useState<OpportunityItem[]>(INITIAL_OPPORTUNITIES);
   const [notifications, setNotifications] = useState<BwanaNotification[]>(INITIAL_NOTIFICATIONS);
   const [savedBusinessIds, setSavedBusinessIds] = useState<string[]>(['biz-abc-hardware']);
 
@@ -100,12 +122,82 @@ export default function App() {
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [nrcModalOpen, setNrcModalOpen] = useState(false);
   const [businessLoginModalOpen, setBusinessLoginModalOpen] = useState(false);
   const [adminGateModalOpen, setAdminGateModalOpen] = useState(false);
   const [apiConsoleModalOpen, setApiConsoleModalOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [scoutsModalOpen, setScoutsModalOpen] = useState(false);
+  const [logisticsModalOpen, setLogisticsModalOpen] = useState(false);
+  const [wholesaleModalOpen, setWholesaleModalOpen] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const [qrStickerModalBiz, setQrStickerModalBiz] = useState<Business | null>(null);
+  const { totalItems: totalCartItems } = useCart();
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [claimModalBiz, setClaimModalBiz] = useState<Business | null>(null);
+
+  // Inactivity timeout notice state (10-minute timeout)
+  const [sessionTimeoutNotice, setSessionTimeoutNotice] = useState<string | null>(() => {
+    if (checkIsSessionExpired()) {
+      clearAllAuthSessions();
+      return 'You were automatically logged out because the app has not been opened or active for more than 10 minutes.';
+    }
+    return null;
+  });
+
+  // Authenticated User Account (with NRC & Biometric Verification status)
+  const [currentUserAccount, setCurrentUserAccount] = useState<UserAccount | null>(() => {
+    try {
+      if (checkIsSessionExpired()) return null;
+      const stored = localStorage.getItem('bwana_user_account_v1');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Stored Business Merchant Session
+  const [businessSession, setBusinessSession] = useState<{ email: string; role: UserRole; name: string } | null>(() => {
+    if (checkIsSessionExpired()) return null;
+    return getStoredBusinessSession() as { email: string; role: UserRole; name: string } | null;
+  });
+
+  // Authentication state (Synced with currentUserAccount or active session)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+      if (checkIsSessionExpired()) return false;
+      return Boolean(localStorage.getItem('bwana_user_account_v1') || localStorage.getItem('bwana_business_session_v1'));
+    } catch {
+      return false;
+    }
+  });
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>(() => {
+    try {
+      if (checkIsSessionExpired()) return '';
+      const userStored = localStorage.getItem('bwana_user_account_v1');
+      if (userStored) {
+        const u = JSON.parse(userStored);
+        return u.email || u.phone || '';
+      }
+      const biz = getStoredBusinessSession();
+      if (biz) return biz.email || '';
+    } catch {}
+    return '';
+  });
+  const [currentUserName, setCurrentUserName] = useState<string>(() => {
+    try {
+      if (checkIsSessionExpired()) return '';
+      const userStored = localStorage.getItem('bwana_user_account_v1');
+      if (userStored) {
+        const u = JSON.parse(userStored);
+        return u.name || '';
+      }
+      const biz = getStoredBusinessSession();
+      if (biz) return biz.name || '';
+    } catch {}
+    return '';
+  });
 
   // Real-Time Firestore Synchronization
   useEffect(() => {
@@ -130,12 +222,27 @@ export default function App() {
       setNotifications(liveNotifs);
     });
 
+    const unsubProf = subscribeToProfessionals((liveProf) => {
+      setProfessionals(liveProf);
+    });
+
+    const unsubEvents = subscribeToEvents((liveEvents) => {
+      setEvents(liveEvents);
+    });
+
+    const unsubOpp = subscribeToOpportunities((liveOpp) => {
+      setOpportunities(liveOpp);
+    });
+
     return () => {
       if (typeof unsubBiz === 'function') unsubBiz();
       if (typeof unsubRev === 'function') unsubRev();
       if (typeof unsubVer === 'function') unsubVer();
       if (typeof unsubLogs === 'function') unsubLogs();
       if (typeof unsubNotifs === 'function') unsubNotifs();
+      if (typeof unsubProf === 'function') unsubProf();
+      if (typeof unsubEvents === 'function') unsubEvents();
+      if (typeof unsubOpp === 'function') unsubOpp();
     };
   }, []);
 
@@ -149,10 +256,110 @@ export default function App() {
     }
   }, [businesses, selectedBusiness]);
 
-  // Authentication state (Default unauthenticated for public viewing)
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
-  const [currentUserName, setCurrentUserName] = useState<string>('');
+  // 10-Minute Inactivity & Auto-Logout Tracker (logs out any user who hasn't opened/used app for >10 mins)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    recordUserActivity();
+
+    let lastRecordTime = Date.now();
+    const handleActivity = () => {
+      const now = Date.now();
+      if (now - lastRecordTime > 10000) {
+        lastRecordTime = now;
+        recordUserActivity(now);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (checkIsSessionExpired()) {
+          handleAutoSignOut('Session Expired: You were automatically logged out after 10 minutes of inactivity.');
+        } else {
+          lastRecordTime = Date.now();
+          recordUserActivity();
+        }
+      } else if (document.visibilityState === 'hidden') {
+        recordUserActivity();
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (checkIsSessionExpired()) {
+        handleAutoSignOut('Session Expired: You were automatically logged out after 10 minutes of inactivity.');
+      }
+    }, 15000);
+
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach((ev) => window.addEventListener(ev, handleActivity, { passive: true }));
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      events.forEach((ev) => window.removeEventListener(ev, handleActivity));
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAuthenticated]);
+
+  // Handler for User Registration/Login via Google, Facebook, Phone, or Email
+  const handleUserAuthSuccess = (user: UserAccount, startVerificationImmediately = false) => {
+    setCurrentUserAccount(user);
+    setIsAuthenticated(true);
+    setCurrentUserEmail(user.email || user.phone || '');
+    setCurrentUserName(user.name);
+    setCurrentRole('user');
+    try {
+      localStorage.setItem('bwana_user_account_v1', JSON.stringify(user));
+      recordUserActivity();
+    } catch {}
+    setSessionTimeoutNotice(null);
+    setAuthModalOpen(false);
+    if (startVerificationImmediately && !user.isNrcVerified) {
+      setNrcModalOpen(true);
+    } else {
+      setCurrentTab('user_dashboard');
+    }
+  };
+
+  // Handler for successful NRC upload + live facial recognition verification
+  const handleNrcVerificationComplete = (updatedUser: UserAccount) => {
+    setCurrentUserAccount(updatedUser);
+    setIsAuthenticated(true);
+    setCurrentUserName(updatedUser.name);
+    if (updatedUser.email) setCurrentUserEmail(updatedUser.email);
+    try {
+      localStorage.setItem('bwana_user_account_v1', JSON.stringify(updatedUser));
+    } catch {}
+    setNrcModalOpen(false);
+
+    // Audit log entry for approved biometric verification
+    const log: AuditLogEntry = {
+      id: `aud-nrc-${Date.now()}`,
+      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      actor: updatedUser.email || updatedUser.phone || updatedUser.name,
+      role: 'user',
+      action: 'NRC_FACIAL_VERIFICATION_APPROVED',
+      targetEntity: 'UserAccount',
+      targetId: updatedUser.id,
+      details: `Customer "${updatedUser.name}" completed Zambian NRC document validation (#${updatedUser.nrcVerification?.nrcNumber}) with live facial scan confidence score ${updatedUser.nrcVerification?.facialMatchScore}%. Granted verified reviewer status.`,
+      ipAddress: '102.144.92.14 (Zambia IP)',
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+    createAuditLogInFirestore(log).catch(console.error);
+
+    // Notification of unlocked review privileges
+    const nrcNotif: BwanaNotification = {
+      id: `notif-nrc-${Date.now()}`,
+      recipientType: 'customer',
+      title: 'NRC Verification Approved ✓',
+      message: 'Your green NRC document and live facial match are approved. You now have full privileges to rate businesses and write customer reviews!',
+      timestamp: 'Just now',
+      read: false,
+      iconType: 'verification',
+    };
+    setNotifications((prev) => [nrcNotif, ...prev]);
+    createNotificationInFirestore(nrcNotif).catch(console.error);
+  };
 
   // Security Role Switcher between the 3 users
   const handleSwitchUser = (u: SystemUser) => {
@@ -162,7 +369,7 @@ export default function App() {
     setCurrentUserName(u.name);
     if (u.role === 'admin') setCurrentTab('admin_dashboard');
     else if (u.role === 'business') setCurrentTab('business_dashboard');
-    else setCurrentTab('discover');
+    else setCurrentTab('user_dashboard');
   };
 
   const handleSignOut = () => {
@@ -170,9 +377,17 @@ export default function App() {
     setCurrentRole('user');
     setCurrentUserEmail('');
     setCurrentUserName('');
-    if (currentTab === 'admin_dashboard' || currentTab === 'business_dashboard') {
+    setCurrentUserAccount(null);
+    setBusinessSession(null);
+    clearAllAuthSessions();
+    if (currentTab === 'admin_dashboard' || currentTab === 'business_dashboard' || currentTab === 'user_dashboard') {
       setCurrentTab('discover');
     }
+  };
+
+  const handleAutoSignOut = (message: string) => {
+    handleSignOut();
+    setSessionTimeoutNotice(message);
   };
 
   // Interactive Action Handlers (Zero dead clicks per skill)
@@ -473,10 +688,15 @@ export default function App() {
     photos?: string[]
   ) => {
     const authorName = currentUserName || (currentUserEmail ? currentUserEmail.split('@')[0] : 'Verified Customer');
+    const isNrcVerified = Boolean(currentUserAccount?.isNrcVerified);
+    const nrcNumberMasked = currentUserAccount?.nrcVerification?.nrcNumber
+      ? currentUserAccount.nrcVerification.nrcNumber.slice(0, 4) + '.../' + currentUserAccount.nrcVerification.nrcNumber.slice(-1)
+      : undefined;
+
     const newRev: BusinessReview = {
       id: `rev-${Date.now()}`,
       businessId,
-      userId: currentUserEmail || `usr-${Date.now()}`,
+      userId: currentUserAccount?.id || currentUserEmail || `usr-${Date.now()}`,
       userName: authorName,
       rating,
       comment,
@@ -486,6 +706,8 @@ export default function App() {
       createdAt: 'Just now',
       helpfulCount: 0,
       verifiedVisit,
+      isNrcVerified,
+      nrcNumberMasked,
     };
 
     const updatedReviews = [newRev, ...reviews];
@@ -494,7 +716,11 @@ export default function App() {
     // Recompute business average rating & reviewsCount
     const bizReviews = updatedReviews.filter((r) => r.businessId === businessId);
     const newCount = bizReviews.length;
-    const newAvg = Math.round((bizReviews.reduce((sum, r) => sum + r.rating, 0) / newCount) * 10) / 10;
+    const ratedReviews = bizReviews.filter((r) => r.rating > 0);
+    const currentBiz = businesses.find((b) => b.id === businessId);
+    const newAvg = ratedReviews.length > 0
+      ? Math.round((ratedReviews.reduce((sum, r) => sum + r.rating, 0) / ratedReviews.length) * 10) / 10
+      : (currentBiz?.rating || 5.0);
 
     // Update in master businesses state
     setBusinesses((prev) =>
@@ -641,15 +867,52 @@ export default function App() {
         onOpenBusinessLogin={() => setBusinessLoginModalOpen(true)}
         onOpenAdminGate={() => setAdminGateModalOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
+        onOpenCart={() => setCartDrawerOpen(true)}
         unreadCount={unreadCount}
         isAuthenticated={isAuthenticated}
+        isNrcVerified={Boolean(currentUserAccount?.isNrcVerified)}
+        onOpenNrcModal={() => setNrcModalOpen(true)}
         currentUserName={currentUserName}
         onSignOut={handleSignOut}
         savedCount={savedBusinessIds.length}
       />
 
+      {/* 10-Minute Inactivity Session Timeout Alert Notice */}
+      {sessionTimeoutNotice && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-900 dark:text-amber-200 px-4 py-2.5 text-xs sm:text-sm flex items-center justify-between gap-3 animate-fade-in transition-colors">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>{sessionTimeoutNotice}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setSessionTimeoutNotice(null);
+                setAuthModalOpen(true);
+              }}
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => setSessionTimeoutNotice(null)}
+              className="p-1 text-amber-700 dark:text-amber-300 hover:text-amber-950 dark:hover:text-white rounded cursor-pointer"
+              title="Dismiss notice"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Offline Status & Directory Cache Notification */}
+      <OfflineCacheBanner
+        businesses={businesses}
+        isLiveConnected={isLiveConnected}
+      />
+
       {/* 2. Main Application Body Router */}
-      <main className="flex-1">
+      <main className="flex-1 pb-20 md:pb-6">
         {currentTab === 'discover' && (
           <HomeScreen
             businesses={businesses}
@@ -664,6 +927,9 @@ export default function App() {
             onToggleSave={handleToggleSave}
             onSelectCategory={handleCategorySelect}
             onNavigateTab={(tab) => setCurrentTab(tab)}
+            onOpenLogistics={() => setLogisticsModalOpen(true)}
+            onOpenScouts={() => setScoutsModalOpen(true)}
+            onOpenCart={() => setCartDrawerOpen(true)}
           />
         )}
 
@@ -726,6 +992,7 @@ export default function App() {
             onSwitchView={(tab) => setCurrentTab(tab)}
             reviews={reviews}
             onRespondToReview={handleRespondToReview}
+            onSignOut={handleSignOut}
           />
         )}
 
@@ -762,6 +1029,23 @@ export default function App() {
           />
         )}
 
+        {currentTab === 'user_dashboard' && (
+          <UserDashboard
+            currentUser={currentUserAccount}
+            currentUserName={currentUserName}
+            currentUserEmail={currentUserEmail}
+            onStartNrcVerification={() => setNrcModalOpen(true)}
+            onNavigateTab={(tab) => setCurrentTab(tab)}
+            savedBusinessCount={savedBusinessIds.length}
+            userReviews={reviews}
+            businesses={businesses}
+            onSelectBusiness={(biz) => setSelectedBusiness(biz)}
+            onOpenCart={() => setCartDrawerOpen(true)}
+            onOpenLogistics={() => setLogisticsModalOpen(true)}
+            onSignOut={handleSignOut}
+          />
+        )}
+
         {currentTab === 'architecture' && <EngineeringSpec />}
       </main>
 
@@ -770,6 +1054,10 @@ export default function App() {
         onSelectTab={(tab) => setCurrentTab(tab)}
         onOpenAdminGate={() => setAdminGateModalOpen(true)}
         onOpenBusinessLogin={() => setBusinessLoginModalOpen(true)}
+        onOpenScouts={() => setScoutsModalOpen(true)}
+        onOpenLogistics={() => setLogisticsModalOpen(true)}
+        onOpenWholesale={() => setWholesaleModalOpen(true)}
+        onOpenWallet={() => setWalletModalOpen(true)}
       />
 
       {/* 4. Global Modals */}
@@ -811,10 +1099,13 @@ export default function App() {
         currentUser={{
           isAuthenticated,
           email: currentUserEmail,
-          name: currentUserName || (currentUserEmail ? currentUserEmail.split('@')[0] : 'Verified Customer'),
+          name: currentUserName || (currentUserEmail ? currentUserEmail.split('@')[0] : 'Public Viewer'),
           role: currentRole,
+          isNrcVerified: Boolean(currentUserAccount?.isNrcVerified),
+          userAccount: currentUserAccount,
         }}
         onRequireLogin={() => setAuthModalOpen(true)}
+        onStartNrcVerification={() => setNrcModalOpen(true)}
         allBusinesses={businesses}
         onSelectBusiness={(biz) => setSelectedBusiness(biz)}
         onFilterDirectoryByTag={(tag) => {
@@ -831,17 +1122,20 @@ export default function App() {
         onSubmitClaim={handleClaimSubmit}
       />
 
-      <AuthModal
+      {/* User Registration & Login Modal: Google, Facebook, Phone SMS, and Email */}
+      <UserAuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
-        onLoginSuccess={(email, role) => {
-          setIsAuthenticated(true);
-          setCurrentUserEmail(email);
-          setCurrentRole(role);
-          setCurrentUserName(email.includes('mumba') ? 'Michael Mumba' : email.split('@')[0]);
-          if (role === 'business_owner' || role === 'business') setCurrentTab('business_dashboard');
-          if (role === 'admin') setCurrentTab('admin_dashboard');
-        }}
+        onAuthSuccess={handleUserAuthSuccess}
+        actionPrompt="Sign in with Google, Facebook, Phone, or Email to complete NRC verification & review businesses"
+      />
+
+      {/* Zambian National Registration Card (NRC) Upload & Live Biometric Facial Scan */}
+      <NrcFacialVerificationModal
+        isOpen={nrcModalOpen}
+        onClose={() => setNrcModalOpen(false)}
+        currentUser={currentUserAccount}
+        onVerificationComplete={handleNrcVerificationComplete}
       />
 
       {/* Dedicated Business Merchant Login Modal */}
@@ -854,6 +1148,17 @@ export default function App() {
           setCurrentRole(role);
           setCurrentUserName(name || 'Business Owner');
           setCurrentTab('business_dashboard');
+          const session = {
+            email,
+            role,
+            name: name || 'ABC Hardware & Supplies',
+            businessId: 'biz-abc-hardware',
+            businessName: 'ABC Hardware & Supplies',
+          };
+          setBusinessSession(session);
+          saveBusinessSession(session);
+          recordUserActivity();
+          setSessionTimeoutNotice(null);
         }}
       />
 
@@ -867,6 +1172,8 @@ export default function App() {
           setCurrentRole(role);
           setCurrentUserName(name || 'Platform Administrator');
           setCurrentTab('admin_dashboard');
+          recordUserActivity();
+          setSessionTimeoutNotice(null);
         }}
       />
 
@@ -905,12 +1212,155 @@ export default function App() {
         onOpenBusinessLogin={() => setBusinessLoginModalOpen(true)}
         onOpenAdminGate={() => setAdminGateModalOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
+        onOpenCart={() => setCartDrawerOpen(true)}
+        onOpenScouts={() => setScoutsModalOpen(true)}
+        onOpenLogistics={() => setLogisticsModalOpen(true)}
+        onOpenWholesale={() => setWholesaleModalOpen(true)}
+        onOpenWallet={() => setWalletModalOpen(true)}
         unreadCount={unreadCount}
         isAuthenticated={isAuthenticated}
+        isNrcVerified={Boolean(currentUserAccount?.isNrcVerified)}
         currentUserName={currentUserName}
         onSignOut={handleSignOut}
         savedCount={savedBusinessIds.length}
       />
+
+      {/* Cart & MoMo / Airtel Money / Wallet Checkout Drawer */}
+      <CartDrawer
+        isOpen={cartDrawerOpen}
+        onClose={() => setCartDrawerOpen(false)}
+        isAuthenticated={isAuthenticated}
+        isNrcVerified={Boolean(currentUserAccount?.isNrcVerified)}
+        onRequireLogin={() => setAuthModalOpen(true)}
+        onStartNrcVerification={() => setNrcModalOpen(true)}
+      />
+
+      {/* Bwana Scouts Agent Program Modal (30s Lite Form, Voice Bemba, K20 Bounty, K5 Airtime) */}
+      <BwanaScoutsModal
+        isOpen={scoutsModalOpen}
+        onClose={() => setScoutsModalOpen(false)}
+        onShopAdded={(name) => {
+          // Notification of newly enrolled informal shop
+          setNotifications((prev) => [
+            {
+              id: `notif-${Date.now()}`,
+              recipientType: 'system',
+              title: 'New Community Shop Enrolled',
+              message: `Scout enrolled "${name}". K20 agent bounty credited.`,
+              timestamp: 'Just now',
+              read: false,
+              iconType: 'verification',
+            },
+            ...prev,
+          ]);
+        }}
+      />
+
+      {/* Express Logistics & Live Courier Tracking & Rides Modal */}
+      <CourierLogisticsModal
+        isOpen={logisticsModalOpen}
+        onClose={() => setLogisticsModalOpen(false)}
+        isAuthenticated={isAuthenticated}
+        isNrcVerified={Boolean(currentUserAccount?.isNrcVerified)}
+        onRequireLogin={() => setAuthModalOpen(true)}
+        onStartNrcVerification={() => setNrcModalOpen(true)}
+      />
+
+      {/* Wholesaler Restock Directory (Trade Kings, Zambeef, National Milling) */}
+      <WholesaleDirectoryModal
+        isOpen={wholesaleModalOpen}
+        onClose={() => setWholesaleModalOpen(false)}
+        businesses={businesses}
+        onSelectBusiness={(biz) => setSelectedBusiness(biz)}
+      />
+
+      {/* Bwana Wallet, Savings Pots & Micro-Loan Calculator Modal */}
+      <BwanaWalletModal
+        isOpen={walletModalOpen}
+        onClose={() => setWalletModalOpen(false)}
+      />
+
+      {/* Printable Bwana Storefront QR Sticker Modal */}
+      {qrStickerModalBiz && (
+        <QrStickerModal
+          isOpen={Boolean(qrStickerModalBiz)}
+          onClose={() => setQrStickerModalBiz(null)}
+          business={qrStickerModalBiz}
+        />
+      )}
+
+      {/* 5. Stitch Mobile Platform Bottom Navigation Bar */}
+      <nav aria-label="Mobile Navigation" className="fixed bottom-0 left-0 right-0 z-40 bg-stone-950/95 dark:bg-stone-950/95 backdrop-blur-md border-t border-stone-800 text-stone-400 md:hidden py-1 px-3 shadow-2xl">
+        <div className="grid grid-cols-5 items-center text-center">
+          <button
+            onClick={() => setCurrentTab('discover')}
+            className={`flex flex-col items-center justify-center py-1.5 transition-colors cursor-pointer ${
+              currentTab === 'discover' ? 'text-emerald-400 font-bold' : 'text-stone-400 hover:text-white'
+            }`}
+          >
+            <Compass className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] leading-tight">Explore</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('businesses')}
+            className={`flex flex-col items-center justify-center py-1.5 transition-colors cursor-pointer ${
+              currentTab === 'businesses' ? 'text-emerald-400 font-bold' : 'text-stone-400 hover:text-white'
+            }`}
+          >
+            <Store className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] leading-tight">Directory</span>
+          </button>
+
+          <button
+            onClick={() => setLogisticsModalOpen(true)}
+            className="flex flex-col items-center justify-center py-1.5 transition-colors cursor-pointer text-stone-400 hover:text-white relative"
+          >
+            <div className="relative">
+              <Truck className="w-5 h-5 mb-0.5 text-emerald-400" />
+              <span className="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            </div>
+            <span className="text-[10px] leading-tight">Express</span>
+          </button>
+
+          <button
+            onClick={() => setCartDrawerOpen(true)}
+            className="flex flex-col items-center justify-center py-1.5 transition-colors cursor-pointer text-stone-400 hover:text-white relative"
+          >
+            <div className="relative">
+              <ShoppingBag className="w-5 h-5 mb-0.5" />
+              {totalCartItems > 0 && (
+                <span className="absolute -top-1 -right-2 bg-emerald-500 text-stone-950 text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center font-mono">
+                  {totalCartItems}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] leading-tight">Cart</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (currentRole === 'business' || currentRole === 'business_owner') {
+                setCurrentTab('business_dashboard');
+              } else if (isAuthenticated) {
+                setCurrentTab('user_dashboard');
+              } else {
+                setAuthModalOpen(true);
+              }
+            }}
+            className={`flex flex-col items-center justify-center py-1.5 transition-colors cursor-pointer ${
+              currentTab === 'user_dashboard' || currentTab === 'business_dashboard'
+                ? 'text-emerald-400 font-bold'
+                : 'text-stone-400 hover:text-white'
+            }`}
+          >
+            <User className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] leading-tight">
+              {isAuthenticated ? 'Account' : 'Sign In'}
+            </span>
+          </button>
+        </div>
+      </nav>
     </div>
   );
 }

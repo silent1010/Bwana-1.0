@@ -19,13 +19,20 @@ service cloud.firestore {
 
     // Connection Health Check endpoint
     match /test/connection {
-      allow read: if true;
+      allow read, write: if true;
     }
 
     // Admins collection
     match /admins/{adminId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // Registered users profiles and verification records
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isValidId(userId);
+      allow delete: if isAdmin();
     }
 
     // Geographic datasets (Read globally, write by Admin)
@@ -39,12 +46,46 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Categories
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(categoryId);
+    }
+
     // Businesses collection
     match /businesses/{businessId} {
       allow read: if true;
       allow create, update: if isValidId(businessId) &&
         request.resource.data.name is string &&
         request.resource.data.name.size() <= 200;
+      allow delete: if isAdmin();
+    }
+
+    // Professionals directory
+    match /professionals/{professionalId} {
+      allow read: if true;
+      allow create, update: if isValidId(professionalId);
+      allow delete: if isAdmin();
+    }
+
+    // Civic and commercial events
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update: if isValidId(eventId);
+      allow delete: if isAdmin();
+    }
+
+    // Tenders and opportunities
+    match /opportunities/{opportunityId} {
+      allow read: if true;
+      allow create, update: if isValidId(opportunityId);
+      allow delete: if isAdmin();
+    }
+
+    // Customer & Merchant Orders (buy products, track dispatch)
+    match /orders/{orderId} {
+      allow read: if true;
+      allow create, update: if isValidId(orderId);
       allow delete: if isAdmin();
     }
 
@@ -78,6 +119,31 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read: if true;
       allow create, update, delete: if isValidId(notificationId);
+    }
+
+    // Courier fleet tracking
+    match /couriers/{courierId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(courierId);
+    }
+
+    // Passenger Ride Requests
+    match /rides/{rideId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(rideId);
+    }
+
+    // Bwana Wallet Transactions
+    match /walletTransactions/{transactionId} {
+      allow read: if true;
+      allow create, update: if isValidId(transactionId);
+      allow delete: if isAdmin();
+    }
+
+    // Bwana Scout Vendor Submissions
+    match /scouts/{scoutId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(scoutId);
     }
 
     // Default deny for unhandled collections

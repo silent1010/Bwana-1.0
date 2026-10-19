@@ -38,15 +38,19 @@ import {
   ZoomOut,
   Compass,
   CheckCircle2,
+  Printer,
   SlidersHorizontal,
-  ChevronRight
+  ChevronRight,
+  ShoppingBag
 } from 'lucide-react';
+import { useCart } from '../../context/CartContext';
 import {
   Business,
   BusinessProduct,
   BusinessService,
   BusinessReview,
-  UserRole
+  UserRole,
+  UserAccount
 } from '../../types';
 import { INITIAL_BUSINESSES, INITIAL_REVIEWS } from '../../data/mockData';
 import { BusinessReviewsSection } from './BusinessReviewsSection';
@@ -77,8 +81,11 @@ interface BusinessProfileModalProps {
     email: string;
     name: string;
     role: UserRole;
+    isNrcVerified?: boolean;
+    userAccount?: UserAccount | null;
   };
   onRequireLogin?: () => void;
+  onStartNrcVerification?: () => void;
   allBusinesses?: Business[];
   onSelectBusiness?: (biz: Business) => void;
   onFilterDirectoryByTag?: (tag: string) => void;
@@ -179,6 +186,7 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
   onHelpfulVote,
   currentUser,
   onRequireLogin,
+  onStartNrcVerification,
   allBusinesses = INITIAL_BUSINESSES,
   onSelectBusiness,
   onFilterDirectoryByTag,
@@ -200,6 +208,9 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [mapZoom, setMapZoom] = useState(15);
   const [mapLayer, setMapLayer] = useState<'streets' | 'satellite'>('streets');
+  const [addedItemNotification, setAddedItemNotification] = useState<string | null>(null);
+
+  const { addToCart } = useCart();
 
   const businessReviews = useMemo(() => {
     if (!business) return [];
@@ -265,7 +276,7 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-stone-950/80 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full border border-stone-200 overflow-hidden my-auto max-h-[92vh] flex flex-col relative animate-in fade-in slide-in-from-bottom-5 duration-300 ease-out">
+      <div className="bg-white dark:bg-stone-900 rounded-3xl shadow-2xl max-w-4xl w-full border border-stone-200 dark:border-stone-800 overflow-hidden my-auto max-h-[92vh] flex flex-col relative animate-in fade-in slide-from-bottom-5 duration-300 ease-out">
         {/* Visual Cover & Header Banner */}
         <div className="relative h-64 sm:h-72 bg-stone-900 shrink-0 overflow-hidden">
           <img
@@ -343,14 +354,38 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
           <div className="absolute bottom-4 left-6 right-6 text-white">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
               <div>
-                <h2 className="text-2xl sm:text-3xl font-bold font-display tracking-tight flex items-center gap-2">
-                  <span>{business.name}</span>
-                  {business.verificationStatus === 'verified' && (
-                    <span className="text-emerald-400 text-xl font-bold" title="Verified by Bwana">
-                      ✓
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-2xl sm:text-3xl font-bold font-display tracking-tight">
+                    {business.name}
+                  </h2>
+                  {business.verificationTier === 'community_verified' ? (
+                    <span
+                      className="text-xs font-semibold bg-stone-800/90 text-stone-200 border border-stone-600 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs"
+                      title="Community Verified by Bwana Scouts and compound community"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-stone-400"></span>
+                      Community Verified
+                    </span>
+                  ) : business.verificationStatus === 'verified' || business.verificationTier === 'bwana_verified' ? (
+                    <span
+                      className="text-xs font-bold bg-stone-950 text-amber-300 border border-amber-500/70 px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-xs"
+                      title="Bwana Verified Business (PACRA & ZRA TPIN certified)"
+                    >
+                      <span className="text-amber-400 font-bold">★</span>
+                      Bwana Verified
+                    </span>
+                  ) : null}
+                  {business.isWholesaler && (
+                    <span className="text-xs font-bold bg-amber-500 text-stone-950 px-2 py-0.5 rounded-full">
+                      Wholesale Restock Hub
                     </span>
                   )}
-                </h2>
+                  {business.isKantemba && (
+                    <span className="text-xs font-semibold bg-sky-900/80 text-sky-200 border border-sky-600 px-2 py-0.5 rounded-full">
+                      Compound Kantemba
+                    </span>
+                  )}
+                </div>
 
                 {/* Clean metadata line */}
                 <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-stone-300 mt-1">
@@ -398,11 +433,11 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
         </div>
 
         {/* Primary Action Bar */}
-        <div className="bg-stone-50 border-b border-stone-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="bg-stone-50 dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex flex-wrap items-center gap-2 flex-1">
             <button
               onClick={() => onCall(business.phone)}
-              className="flex items-center gap-2 px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+              className="flex items-center gap-2 px-4 py-2 bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
             >
               <Phone className="w-4 h-4 text-emerald-400" />
               <span>Call {business.phone}</span>
@@ -410,7 +445,7 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
 
             <button
               onClick={() => onWhatsApp(business.whatsapp)}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
             >
               <MessageSquare className="w-4 h-4" />
               <span>WhatsApp Message</span>
@@ -418,25 +453,25 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
 
             <button
               onClick={() => onDirections(business)}
-              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-stone-100 text-stone-800 border border-stone-300 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-stone-100 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700 rounded-xl text-xs font-medium transition-colors cursor-pointer"
             >
-              <Navigation className="w-4 h-4 text-stone-600" />
+              <Navigation className="w-4 h-4 text-stone-600 dark:text-stone-400" />
               <span>Directions</span>
             </button>
 
             <button
               onClick={() => setShowMapModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-stone-100 text-stone-800 border border-stone-300 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-stone-100 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700 rounded-xl text-xs font-medium transition-colors cursor-pointer"
             >
-              <MapIcon className="w-4 h-4 text-emerald-600" />
+              <MapIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>Show on Map</span>
             </button>
 
             <button
               onClick={() => setShowQrModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-stone-100 text-stone-800 border border-stone-300 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-stone-100 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700 rounded-xl text-xs font-medium transition-colors cursor-pointer"
             >
-              <QrCode className="w-4 h-4 text-amber-600" />
+              <QrCode className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               <span>Scan QR</span>
             </button>
 
@@ -633,13 +668,13 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
         )}
 
         {/* Navigation Tabs */}
-        <div className="px-6 border-b border-stone-200 bg-white flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+        <div className="px-6 border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
           <button
             onClick={() => setActiveTab('overview')}
             className={`py-3 px-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
               activeTab === 'overview'
-                ? 'border-emerald-600 text-emerald-800'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400 font-bold'
+                : 'border-transparent text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             Overview & Attributes
@@ -648,8 +683,8 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
             onClick={() => setActiveTab('products')}
             className={`py-3 px-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'products'
-                ? 'border-emerald-600 text-emerald-800'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400 font-bold'
+                : 'border-transparent text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <Package className="w-3.5 h-3.5" />
@@ -659,8 +694,8 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
             onClick={() => setActiveTab('services')}
             className={`py-3 px-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'services'
-                ? 'border-emerald-600 text-emerald-800'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400 font-bold'
+                : 'border-transparent text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <Wrench className="w-3.5 h-3.5" />
@@ -670,8 +705,8 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
             onClick={() => setActiveTab('promotions')}
             className={`py-3 px-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'promotions'
-                ? 'border-emerald-600 text-emerald-800'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400 font-bold'
+                : 'border-transparent text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <Flame className="w-3.5 h-3.5 text-amber-500" />
@@ -681,12 +716,12 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
             onClick={() => setActiveTab('reviews')}
             className={`py-3 px-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'reviews'
-                ? 'border-emerald-600 text-emerald-800'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-emerald-600 text-emerald-800 dark:text-emerald-400 font-bold'
+                : 'border-transparent text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
-            <Star className="w-3.5 h-3.5" />
-            <span>Reviews ({businessReviews.length})</span>
+            <Star className="w-3.5 h-3.5 text-amber-500" />
+            <span>Reviews ({businessReviews.length || business.reviewsCount})</span>
           </button>
         </div>
 
@@ -697,6 +732,24 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Left 2 cols: About, Attributes, Catalog, Social */}
               <div className="md:col-span-2 space-y-6">
+                {business.scoutOnboardedBy && (
+                  <div className="p-3 bg-stone-100 border border-stone-200 rounded-xl flex items-center justify-between text-xs text-stone-700">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                      <span>Verified informal shop enrolled by <strong>{business.scoutOnboardedBy}</strong></span>
+                    </div>
+                    <span className="text-[10px] font-mono bg-stone-200 px-2 py-0.5 rounded text-stone-700 font-bold">K20 Scout Bounty Paid</span>
+                  </div>
+                )}
+                {business.isWholesaler && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">📦 Wholesale Restock Partner:</span>
+                      <span>Carton and bulk pallet orders available for compound shops and kantembas.</span>
+                    </div>
+                    <span className="text-[10px] font-mono bg-amber-200 px-2 py-0.5 rounded font-bold">Min Order: ZMW {business.minOrderAmount}</span>
+                  </div>
+                )}
                 <div>
                   <h4 className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-2">
                     About {business.name}
@@ -1019,6 +1072,16 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                 </div>
               </div>
 
+              {addedItemNotification && (
+                <div className="p-3 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    <span>Added <strong>{addedItemNotification}</strong> to Bwana Cart!</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-emerald-600">Doorstep Delivery Ready</span>
+                </div>
+              )}
+
               {!business.products || business.products.length === 0 ? (
                 <div className="p-8 text-center text-stone-500 bg-stone-50 rounded-xl">
                   No catalog products listed yet.
@@ -1028,7 +1091,7 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                   {business.products.map((prod) => (
                     <div
                       key={prod.id}
-                      className="p-4 bg-white border border-stone-200 rounded-xl flex flex-col justify-between hover:border-emerald-300 transition-colors"
+                      className="p-4 bg-white border border-stone-200 rounded-xl flex flex-col justify-between hover:border-emerald-300 transition-colors shadow-2xs"
                     >
                       <div>
                         {prod.category && (
@@ -1046,16 +1109,30 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                         )}
                       </div>
 
-                      <div className="pt-3 mt-4 border-t border-stone-100 flex items-center justify-between">
-                        <div>
-                          <span className="text-[11px] text-stone-400 block">Price</span>
-                          <span className="text-base font-mono font-bold text-stone-900">
-                            {prod.currency} {prod.price.toLocaleString()}
+                      <div className="pt-3 mt-4 border-t border-stone-100 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-[11px] text-stone-400 block">Price</span>
+                            <span className="text-base font-mono font-bold text-stone-900">
+                              {prod.currency} {prod.price.toLocaleString()}
+                            </span>
+                          </div>
+                          <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                            In Stock
                           </span>
                         </div>
-                        <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                          In Stock
-                        </span>
+
+                        <button
+                          onClick={() => {
+                            addToCart(prod, business.name);
+                            setAddedItemNotification(prod.name);
+                            setTimeout(() => setAddedItemNotification(null), 3000);
+                          }}
+                          className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs mt-1"
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5" />
+                          <span>Add to Cart · Buy Now</span>
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1223,6 +1300,12 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                     createdAt: 'Just now',
                     helpfulCount: 0,
                     verifiedVisit,
+                    isNrcVerified: currentUser?.isNrcVerified ?? false,
+                    nrcNumberMasked: currentUser?.isNrcVerified
+                      ? (currentUser?.userAccount?.nrcVerification?.nrcNumber
+                          ? currentUser.userAccount.nrcVerification.nrcNumber.slice(0, 4) + '.../' + currentUser.userAccount.nrcVerification.nrcNumber.slice(-1)
+                          : '2948.../1')
+                      : undefined,
                   };
                   setReviews([newRev, ...reviews]);
                 }
@@ -1230,13 +1313,15 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
               onHelpfulVote={onHelpfulVote}
               currentUser={
                 currentUser || {
-                  isAuthenticated: true,
-                  email: 'm.mumba8@gmail.com',
-                  name: 'Michael Mumba',
+                  isAuthenticated: false,
+                  email: '',
+                  name: 'Public Viewer',
                   role: 'user',
+                  isNrcVerified: false,
                 }
               }
               onRequireLogin={onRequireLogin || (() => {})}
+              onStartNrcVerification={onStartNrcVerification}
             />
           )}
 

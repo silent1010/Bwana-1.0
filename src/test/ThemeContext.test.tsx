@@ -60,4 +60,32 @@ describe('ThemeContext & Theme-Aware System', () => {
       expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     }
   });
+
+  it('never falls back to system mode and allows user to change between dark and light whenever wanted', () => {
+    render(
+      <ThemeProvider>
+        <TestComponent />
+      </ThemeProvider>
+    );
+
+    // Initial load without stored preference must always be 'light', never forced by system mode
+    expect(screen.getByTestId('theme-val').textContent).toBe('light');
+    expect(screen.getByTestId('is-dark-val').textContent).toBe('false');
+
+    const toggleBtn = screen.getByText('Toggle Theme');
+
+    // User switches to dark whenever they want
+    fireEvent.click(toggleBtn);
+    expect(screen.getByTestId('theme-val').textContent).toBe('dark');
+    expect(screen.getByTestId('is-dark-val').textContent).toBe('true');
+    expect(localStorage.getItem('theme')).toBe('dark');
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+
+    // User switches back to light whenever they want
+    fireEvent.click(toggleBtn);
+    expect(screen.getByTestId('theme-val').textContent).toBe('light');
+    expect(screen.getByTestId('is-dark-val').textContent).toBe('false');
+    expect(localStorage.getItem('theme')).toBe('light');
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+  });
 });

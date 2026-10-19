@@ -31,6 +31,16 @@ export class ErrorBoundary extends Component<Props, State> {
     try {
       localStorage.clear();
       sessionStorage.clear();
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          for (const reg of regs) reg.unregister();
+        }).catch(() => {});
+      }
+      if ('caches' in window) {
+        caches.keys().then((keys) => {
+          for (const key of keys) caches.delete(key);
+        }).catch(() => {});
+      }
     } catch {
       // ignore in incognito or restricted mode
     }

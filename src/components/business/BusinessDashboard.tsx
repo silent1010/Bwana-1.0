@@ -15,10 +15,17 @@ import {
   Layers,
   Save,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  ShoppingBag,
+  Printer,
+  PackageCheck,
+  XCircle,
+  Truck,
+  LogOut
 } from 'lucide-react';
 import { Business, BusinessProduct, BusinessService, BusinessPromotion, BusinessReview, PriceType } from '../../types';
 import { EngagementAnalyticsChart } from './EngagementAnalyticsChart';
+import { useCart, Order } from '../../context/CartContext';
 
 interface BusinessDashboardProps {
   business: Business;
@@ -26,6 +33,7 @@ interface BusinessDashboardProps {
   onSwitchView: (tab: string) => void;
   reviews?: BusinessReview[];
   onRespondToReview?: (reviewId: string, comment: string, responderName: string) => void;
+  onSignOut?: () => void;
 }
 
 export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
@@ -34,8 +42,10 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   onSwitchView,
   reviews = [],
   onRespondToReview,
+  onSignOut,
 }) => {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'products' | 'services' | 'promotions' | 'verification' | 'reviews' | 'settings'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'orders' | 'products' | 'services' | 'promotions' | 'verification' | 'reviews' | 'settings'>('analytics');
+  const { orders, updateOrderStatus } = useCart();
   const [replyingReviewId, setReplyingReviewId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [responderName, setResponderName] = useState(`${business.name} Management`);
@@ -44,6 +54,48 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   const businessReviews = useMemo(() => {
     return reviews.filter((r) => r.businessId === business.id);
   }, [reviews, business.id]);
+
+  // Orders for this merchant with live fallback demo
+  const merchantOrders = useMemo(() => {
+    const direct = orders.filter((o) => o.businessId === business.id || o.businessName === business.name);
+    if (direct.length > 0) return direct;
+    return [
+      {
+        id: 'ORD-KTW-8812',
+        businessId: business.id,
+        businessName: business.name,
+        items: [
+          {
+            product: business.products?.[0] || {
+              id: 'p-1',
+              businessId: business.id,
+              name: 'Store Inventory Item',
+              price: 150,
+              priceType: 'fixed',
+              currency: 'ZMW',
+              inStock: true
+            },
+            businessId: business.id,
+            businessName: business.name,
+            quantity: 2
+          }
+        ],
+        subtotal: 300,
+        deliveryFee: 40,
+        platformSplitFee: 3.00,
+        merchantPayout: 297.00,
+        total: 340,
+        customerName: 'Mwamba Chisanga',
+        customerPhone: '+260 97 711 8330',
+        deliveryAddress: 'Plot 418, Riverside Ext, Kitwe',
+        paymentMethod: 'mtn_momo' as const,
+        paymentStatus: 'paid' as const,
+        orderStatus: 'received' as const,
+        trackingNumber: 'BW-9941-KTW',
+        createdAt: '2026-10-09T08:30:00Z'
+      }
+    ];
+  }, [orders, business]);
 
   // Stats matching PRD section 11
   const [stats] = useState({
@@ -178,20 +230,31 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <button
               onClick={() => onSwitchView('businesses')}
-              className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-lg text-xs font-medium transition-colors"
+              className="px-3.5 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-xl text-xs font-medium transition-colors cursor-pointer"
             >
               Public Profile Preview
             </button>
-            <div className="p-3 bg-emerald-950/80 border border-emerald-700/60 rounded-xl text-center">
+            <div className="p-2 sm:p-2.5 bg-emerald-950/80 border border-emerald-700/60 rounded-xl text-center">
               <div className="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">Listing Status</div>
               <div className="text-xs font-bold text-white mt-0.5 flex items-center justify-center gap-1">
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Verified ✓ Active</span>
               </div>
             </div>
+            {onSignOut && (
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="px-3.5 py-2 bg-rose-950/70 hover:bg-rose-900 border border-rose-800 text-rose-200 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs group"
+                title="Log out of business merchant portal"
+              >
+                <LogOut className="w-3.5 h-3.5 text-rose-400 group-hover:scale-110 transition-transform" />
+                <span>Log Out</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -266,83 +329,244 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
       </div>
 
       {/* Dashboard Sub-Navigation */}
-      <div className="flex items-center gap-2 border-b border-stone-200 pb-3 mb-6 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-2 border-b border-stone-200 dark:border-stone-800 pb-3 mb-6 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
             activeTab === 'analytics'
-              ? 'bg-stone-900 text-white'
-              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+              ? 'bg-emerald-600 text-white shadow-xs font-bold'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700'
           }`}
         >
           Performance & Leads
         </button>
         <button
+          onClick={() => setActiveTab('orders')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'orders'
+              ? 'bg-emerald-600 text-white shadow-xs font-bold'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700'
+          }`}
+        >
+          <ShoppingBag className="w-3.5 h-3.5 text-emerald-300" />
+          <span>Orders & Invoices</span>
+          <span className="bg-emerald-500 text-stone-950 font-bold text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+            {merchantOrders.length}
+          </span>
+        </button>
+        <button
           onClick={() => setActiveTab('products')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'products'
-              ? 'bg-stone-900 text-white'
-              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+              ? 'bg-emerald-600 text-white shadow-xs font-bold'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700'
           }`}
         >
           <span>Products Catalog</span>
-          <span className="bg-stone-200 text-stone-800 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+          <span className="bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
             {business.products?.length || 0}
           </span>
         </button>
         <button
           onClick={() => setActiveTab('services')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'services'
-              ? 'bg-stone-900 text-white'
-              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+              ? 'bg-emerald-600 text-white shadow-xs font-bold'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700'
           }`}
         >
           <span>Services & Rates</span>
-          <span className="bg-stone-200 text-stone-800 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+          <span className="bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
             {business.services?.length || 0}
           </span>
         </button>
         <button
           onClick={() => setActiveTab('promotions')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'promotions'
-              ? 'bg-stone-900 text-white'
-              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+              ? 'bg-emerald-600 text-white shadow-xs font-bold'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700'
           }`}
         >
-          <Flame className="w-3.5 h-3.5 text-amber-500" />
+          <Flame className="w-3.5 h-3.5 text-amber-400" />
           <span>Active Promotions</span>
-          <span className="bg-stone-200 text-stone-800 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+          <span className="bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
             {business.promotions?.length || 0}
           </span>
         </button>
         <button
           onClick={() => setActiveTab('verification')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'verification'
-              ? 'bg-stone-900 text-white'
-              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+              ? 'bg-emerald-600 text-white shadow-xs font-bold'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700'
           }`}
         >
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
           <span>PACRA & Verification</span>
         </button>
         <button
           onClick={() => setActiveTab('reviews')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'reviews'
-              ? 'bg-stone-900 text-white'
-              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+              ? 'bg-emerald-600 text-white shadow-xs font-bold'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700'
           }`}
         >
-          <Star className="w-3.5 h-3.5 text-amber-500" />
+          <Star className="w-3.5 h-3.5 text-amber-400" />
           <span>Reviews & Ratings</span>
-          <span className="bg-stone-200 text-stone-800 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+          <span className="bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
             {businessReviews.length}
           </span>
         </button>
       </div>
+
+      {/* TAB CONTENT: Seller Orders & Invoices (Phase 1 Super App) */}
+      {activeTab === 'orders' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold font-display text-stone-900">
+                Seller Orders & Tax Invoices
+              </h3>
+              <p className="text-xs text-stone-500">
+                Manage incoming customer orders, dispatch with Bwana Couriers, and download official invoices with 1% split.
+              </p>
+            </div>
+            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-800">
+              <span className="font-bold">1% Auto-Split:</span>
+              <span>Shop receives 99% payout, Bwana receives 1% platform fee.</span>
+            </div>
+          </div>
+
+          {/* Orders List */}
+          <div className="space-y-4">
+            {merchantOrders.map((ord) => (
+              <div
+                key={ord.id}
+                className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-4"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-stone-900">Order #{ord.id}</span>
+                      <span className="text-[11px] font-mono bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
+                        {ord.trackingNumber}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                          ord.orderStatus === 'delivered'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : ord.orderStatus === 'in_transit'
+                            ? 'bg-sky-100 text-sky-800'
+                            : ord.orderStatus === 'preparing'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-stone-100 text-stone-700'
+                        }`}
+                      >
+                        {ord.orderStatus.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div className="text-xs text-stone-400 mt-1">
+                      Customer: <strong className="text-stone-700">{ord.customerName}</strong> ({ord.customerPhone}) · {ord.deliveryAddress}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => window.print()}
+                      className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Print Official Merchant Invoice"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Print Invoice</span>
+                    </button>
+                    <a
+                      href={`tel:${ord.customerPhone}`}
+                      className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                      title="Call Buyer"
+                    >
+                      <PhoneCall className="w-4 h-4" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Items in order */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block">
+                    Ordered Items
+                  </span>
+                  {ord.items.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs py-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-stone-400">{item.quantity}x</span>
+                        <span className="font-medium text-stone-800">{item.product.name}</span>
+                      </div>
+                      <span className="font-mono font-bold text-stone-900">
+                        ZMW {(item.product.price * item.quantity).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Financial 1% auto-split summary */}
+                <div className="p-3 bg-stone-50 rounded-xl grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-[11px] text-stone-400 block">Subtotal</span>
+                    <span className="font-mono font-bold text-stone-800">ZMW {ord.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-stone-400 block">Delivery Fee</span>
+                    <span className="font-mono text-stone-800">ZMW {ord.deliveryFee.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-amber-700 font-semibold block">Bwana 1% Commission</span>
+                    <span className="font-mono font-bold text-amber-700">-ZMW {ord.platformSplitFee.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-emerald-700 font-bold block">Merchant Payout (99%)</span>
+                    <span className="font-mono font-extrabold text-emerald-700 text-sm">
+                      ZMW {ord.merchantPayout.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Order workflow actions */}
+                <div className="pt-2 border-t border-stone-100 flex flex-wrap gap-2 items-center justify-between">
+                  <span className="text-[11px] text-stone-500">Update Order State:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      onClick={() => updateOrderStatus(ord.id, 'accepted')}
+                      className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded text-xs font-semibold cursor-pointer"
+                    >
+                      Accept Order
+                    </button>
+                    <button
+                      onClick={() => updateOrderStatus(ord.id, 'preparing')}
+                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded text-xs font-semibold cursor-pointer"
+                    >
+                      Preparing Goods
+                    </button>
+                    <button
+                      onClick={() => updateOrderStatus(ord.id, 'in_transit')}
+                      className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded text-xs font-semibold cursor-pointer flex items-center gap-1"
+                    >
+                      <Truck className="w-3 h-3" />
+                      <span>Hand to Courier</span>
+                    </button>
+                    <button
+                      onClick={() => updateOrderStatus(ord.id, 'delivered')}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold cursor-pointer"
+                    >
+                      Mark Delivered
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* TAB CONTENT: Products Manager (PRD Section 12) */}
       {activeTab === 'products' && (

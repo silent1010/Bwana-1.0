@@ -23,6 +23,7 @@ import {
   Briefcase,
   Hotel,
   Calendar,
+  Truck,
   GraduationCap,
   Laptop,
   Wheat
@@ -45,6 +46,9 @@ interface HomeScreenProps {
   onToggleSave: (bizId: string, e: React.MouseEvent) => void;
   onSelectCategory: (categoryId: string) => void;
   onNavigateTab: (tab: string) => void;
+  onOpenLogistics?: () => void;
+  onOpenScouts?: () => void;
+  onOpenCart?: () => void;
 }
 
 // Icon mapper for categories
@@ -79,6 +83,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onToggleSave,
   onSelectCategory,
   onNavigateTab,
+  onOpenLogistics,
+  onOpenScouts,
+  onOpenCart,
 }) => {
   const [nearbyRadius, setNearbyRadius] = useState<number>(5);
   const [nearbyViewMode, setNearbyViewMode] = useState<'cards' | 'map'>('cards');
@@ -99,7 +106,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     .flatMap((b) => b.promotions || []);
 
   return (
-    <div className="space-y-12 pb-16">
+    <div className="space-y-10 pb-16">
       {/* 1. HERO SECTION & PRIMARY DISCOVERY CONTRACT */}
       <section className="relative bg-stone-900 text-white overflow-hidden">
         {/* Background Image with Scrim */}
@@ -131,17 +138,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             Directly connect with certified hardware providers, plumbers, mechanics, restaurants, professionals, and weekend offers in your town.
           </p>
 
-          {/* Search Trigger (PRD Section 5: "What are you looking for?") */}
+          {/* Search Trigger */}
           <div className="w-full max-w-2xl mt-8">
             <div
               onClick={onOpenSearch}
-              className="bg-white rounded-2xl p-2.5 sm:p-3 shadow-xl border border-stone-200 flex items-center gap-3 cursor-pointer hover:border-emerald-400 transition-all text-left"
+              className="bg-white dark:bg-stone-900 rounded-2xl p-2.5 sm:p-3 shadow-xl border border-stone-200 dark:border-stone-800 flex items-center gap-3 cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-500 transition-all text-left"
             >
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                 <Search className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-stone-900 font-semibold text-xs sm:text-sm">
+                <div className="text-stone-900 dark:text-white font-semibold text-xs sm:text-sm">
                   What are you looking for?
                 </div>
                 <div className="text-stone-400 text-[11px] sm:text-xs truncate">
@@ -181,20 +188,67 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* 2. CATEGORIES GRID (PRD Section 5: 🍴 Food, 🛒 Shopping, 🔧 Services, etc.) */}
+      {/* 2. STITCH BWANA EXPRESS LOGISTICS & RIDES BANNER */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="bg-gradient-to-r from-emerald-950 via-stone-900 to-stone-950 border border-emerald-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16" />
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
+                <Truck className="w-6 h-6" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-sm sm:text-base font-display text-white">
+                    Bwana Express Logistics & Local Rides
+                  </span>
+                  <span className="text-[10px] font-mono font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 px-2 py-0.5 rounded-full">
+                    Base K20 + K4/km
+                  </span>
+                </div>
+                <p className="text-xs text-stone-300">
+                  Kitwe & Lusaka on-demand motorcycle couriers, parcel dispatch, and GPS live route tracking.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0 flex-wrap">
+              {onOpenLogistics && (
+                <button
+                  onClick={onOpenLogistics}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  <span>Book Rider / Track Delivery</span>
+                </button>
+              )}
+              {onOpenScouts && (
+                <button
+                  onClick={onOpenScouts}
+                  className="px-3.5 py-2.5 bg-stone-800/90 hover:bg-stone-700/90 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <span>Scouts (K20 Bounty)</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. CATEGORIES GRID */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold font-display text-stone-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-bold font-display text-stone-900 dark:text-white tracking-tight">
               Explore by Category
             </h2>
-            <p className="text-xs text-stone-500 mt-0.5">
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
               Verified business directories and independent trades in Zambia
             </p>
           </div>
           <button
             onClick={() => onNavigateTab('businesses')}
-            className="text-xs font-semibold text-emerald-700 hover:underline flex items-center gap-1"
+            className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
           >
             <span>All Categories</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -206,15 +260,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <button
               key={cat.id}
               onClick={() => onSelectCategory(cat.id)}
-              className="p-4 bg-white border border-stone-200/90 rounded-2xl hover:border-emerald-400 hover:shadow-sm transition-all duration-150 flex flex-col items-center text-center cursor-pointer group"
+              className="p-4 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl hover:border-emerald-500/70 dark:hover:border-emerald-500/60 hover:shadow-md transition-all duration-150 flex flex-col items-center text-center cursor-pointer group"
             >
-              <div className="w-12 h-12 rounded-xl bg-stone-50 group-hover:bg-emerald-50 transition-colors flex items-center justify-center mb-3">
+              <div className="w-12 h-12 rounded-xl bg-stone-50 dark:bg-stone-800 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/60 transition-colors flex items-center justify-center mb-3">
                 {getCategoryIcon(cat.iconName)}
               </div>
-              <h3 className="font-semibold text-xs sm:text-sm text-stone-900 group-hover:text-emerald-800 transition-colors line-clamp-1">
+              <h3 className="font-semibold text-xs sm:text-sm text-stone-900 dark:text-stone-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors line-clamp-1">
                 {cat.name}
               </h3>
-              <p className="text-[11px] text-stone-400 mt-0.5 font-mono">
+              <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5 font-mono">
                 {cat.count} listings
               </p>
             </button>
@@ -274,20 +328,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </section>
       )}
 
-      {/* 4. NEARBY BUSINESSES WITH GPS RADIUS CONTROLLER (PRD Section 5 & 7) */}
+      {/* 4. NEARBY BUSINESSES WITH GPS RADIUS CONTROLLER */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl sm:text-2xl font-bold font-display text-stone-900 tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-bold font-display text-stone-900 dark:text-white tracking-tight">
                 Businesses Near You
               </h2>
-              <span className="text-xs font-mono font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
-                GPS Spherical Radius
+              <span className="text-xs font-mono font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                GPS Radar
               </span>
             </div>
-            <p className="text-xs text-stone-500 mt-0.5">
-              Calculated from {currentLocation.name} coordinates using PostGIS geography points
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+              Calculated from {currentLocation.name} coordinates across Kitwe & Copperbelt
             </p>
           </div>
 
@@ -315,7 +369,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
                   nearbyViewMode === 'cards'
                     ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-xs font-semibold'
-                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
                 }`}
                 title="View grid cards"
               >
@@ -327,11 +381,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
                   nearbyViewMode === 'map'
                     ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-xs font-semibold'
-                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
                 }`}
                 title="View on interactive Leaflet map"
               >
-                <MapIcon className="w-3.5 h-3.5 text-emerald-600" />
+                <MapIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>Map View</span>
               </button>
             </div>
@@ -339,9 +393,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
 
         {nearbyBusinesses.length === 0 ? (
-          <div className="p-8 text-center text-stone-500 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
+          <div className="p-8 text-center text-stone-500 dark:text-stone-400 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
             <p className="text-sm font-semibold">No businesses found within {nearbyRadius} km.</p>
-            <p className="text-xs text-stone-400 mt-1">Try expanding your radius to 10 km or 25 km.</p>
+            <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Try expanding your radius to 10 km or 25 km.</p>
           </div>
         ) : nearbyViewMode === 'map' ? (
           <div className="space-y-4">
@@ -374,20 +428,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         )}
       </section>
 
-      {/* 5. POPULAR IN YOUR AREA (PRD Section 5) */}
+      {/* 5. POPULAR IN YOUR AREA */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold font-display text-stone-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-bold font-display text-stone-900 dark:text-white tracking-tight">
               Popular in {currentLocation.district}
             </h2>
-            <p className="text-xs text-stone-500 mt-0.5">
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
               Highest rated and community-reviewed services in your province
             </p>
           </div>
           <button
             onClick={() => onNavigateTab('businesses')}
-            className="text-xs font-semibold text-emerald-700 hover:underline flex items-center gap-1"
+            className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
           >
             <span>View All</span>
             <ChevronRight className="w-3.5 h-3.5" />

@@ -86,9 +86,15 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       {/* Title & Search Filter */}
       <div className="mb-8">
-        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-1">
-          <Building2 className="w-3.5 h-3.5" />
-          <span>Bwana Verified Directory</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 uppercase tracking-wider">
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Bwana Verified Directory</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-stone-600 bg-stone-100 dark:bg-stone-800/80 px-2.5 py-0.5 rounded-full border border-stone-200 dark:border-stone-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Offline Ready · {businesses.length} Cached Locally</span>
+          </div>
         </div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
