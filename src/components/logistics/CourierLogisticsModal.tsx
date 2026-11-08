@@ -16,7 +16,6 @@ import {
   Sparkles,
   ArrowRight
 } from 'lucide-react';
-import { INITIAL_COURIERS, INITIAL_RIDES } from '../../data/mockData';
 import { CourierDriver, RideRequest } from '../../types';
 import {
   subscribeToCouriers,
@@ -56,17 +55,15 @@ export const CourierLogisticsModal: React.FC<CourierLogisticsModalProps> = ({
   const [rideDistanceKm, setRideDistanceKm] = useState(4.5);
   const [selectedRideType, setSelectedRideType] = useState<'bwana_bike' | 'bwana_cab'>('bwana_bike');
   const [rideBooked, setRideBooked] = useState(false);
-  const [couriers, setCouriers] = useState<CourierDriver[]>(INITIAL_COURIERS);
-  const [assignedDriver, setAssignedDriver] = useState<CourierDriver | null>(INITIAL_COURIERS[0]);
+  const [couriers, setCouriers] = useState<CourierDriver[]>([]);
+  const [assignedDriver, setAssignedDriver] = useState<CourierDriver | null>(null);
 
   // Synchronize with live Firestore couriers
   useEffect(() => {
     const unsub = subscribeToCouriers((liveCouriers) => {
+      setCouriers(liveCouriers || []);
       if (liveCouriers && liveCouriers.length > 0) {
-        setCouriers(liveCouriers);
-        if (!assignedDriver) {
-          setAssignedDriver(liveCouriers[0]);
-        }
+        setAssignedDriver((prev) => prev || liveCouriers[0]);
       }
     });
     return () => {

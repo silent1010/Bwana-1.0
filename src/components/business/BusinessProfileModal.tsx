@@ -52,8 +52,9 @@ import {
   UserRole,
   UserAccount
 } from '../../types';
-import { INITIAL_BUSINESSES, INITIAL_REVIEWS } from '../../data/mockData';
 import { BusinessReviewsSection } from './BusinessReviewsSection';
+import { GoogleMapView } from '../common/GoogleMapView';
+import { optimizeBusinessImage, DEFAULT_BUSINESS_COVER } from '../../lib/images/imageOptimizer';
 
 interface BusinessProfileModalProps {
   business: Business | null;
@@ -62,6 +63,7 @@ interface BusinessProfileModalProps {
   onCall: (phone: string) => void;
   onWhatsApp: (whatsapp: string) => void;
   onDirections: (biz: Business) => void;
+  onChat?: (biz: Business) => void;
   isSaved?: boolean;
   onToggleSave?: (bizId: string) => void;
   onOpenClaimModal?: (biz: Business) => void;
@@ -178,6 +180,7 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
   onCall,
   onWhatsApp,
   onDirections,
+  onChat,
   isSaved = false,
   onToggleSave,
   onOpenClaimModal,
@@ -187,14 +190,14 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
   currentUser,
   onRequireLogin,
   onStartNrcVerification,
-  allBusinesses = INITIAL_BUSINESSES,
+  allBusinesses = [],
   onSelectBusiness,
   onFilterDirectoryByTag,
 }) => {
   const [activeTab, setActiveTab] = useState<
     'overview' | 'products' | 'services' | 'promotions' | 'reviews'
   >('overview');
-  const [reviews, setReviews] = useState<BusinessReview[]>(INITIAL_REVIEWS);
+  const [reviews, setReviews] = useState<BusinessReview[]>([]);
   const [reportSubmitted, setReportSubmitted] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportReason, setReportReason] = useState('Incorrect phone number or address');
@@ -280,8 +283,13 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
         {/* Visual Cover & Header Banner */}
         <div className="relative h-64 sm:h-72 bg-stone-900 shrink-0 overflow-hidden">
           <img
-            src={business.coverImage}
+            src={optimizeBusinessImage(business.coverImage, 800)}
             alt={business.name}
+            loading="eager"
+            decoding="async"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = DEFAULT_BUSINESS_COVER;
+            }}
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-black/40" />
@@ -443,12 +451,23 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
               <span>Call {business.phone}</span>
             </button>
 
+            {onChat && (
+              <button
+                onClick={() => onChat(business)}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                title="Direct In-App Chat with merchant (No WhatsApp needed)"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Direct In-App Chat</span>
+              </button>
+            )}
+
             <button
               onClick={() => onWhatsApp(business.whatsapp)}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+              className="flex items-center gap-2 px-3.5 py-2 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 rounded-xl text-xs font-medium transition-colors cursor-pointer"
             >
-              <MessageSquare className="w-4 h-4" />
-              <span>WhatsApp Message</span>
+              <MessageSquare className="w-4 h-4 text-emerald-600" />
+              <span>WhatsApp</span>
             </button>
 
             <button
@@ -609,8 +628,13 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                     >
                       <div className="flex items-start gap-2.5">
                         <img
-                          src={match.coverImage}
+                          src={optimizeBusinessImage(match.coverImage, 400)}
                           alt={match.name}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = DEFAULT_BUSINESS_COVER;
+                          }}
                           className="w-12 h-12 rounded-lg object-cover shrink-0 border border-stone-700"
                         />
                         <div className="min-w-0 flex-1">
@@ -944,8 +968,13 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                       {business.galleryImages.map((img, idx) => (
                         <img
                           key={idx}
-                          src={img}
+                          src={optimizeBusinessImage(img, 400)}
                           alt={`${business.name} photo ${idx + 1}`}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = DEFAULT_BUSINESS_COVER;
+                          }}
                           className="h-28 w-full object-cover rounded-lg border border-stone-200"
                         />
                       ))}
@@ -956,36 +985,61 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
 
               {/* Right 1 col: Operational Details, Opening Hours & Location Info */}
               <div className="space-y-6">
-                {/* Location & Address Card with 'Show on Map' CTA */}
-                <div className="p-4 bg-stone-50 rounded-xl border border-stone-200 space-y-3">
+                {/* Location & Address Card with Live Google Map Preview */}
+                <div className="p-4 bg-stone-50 dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-800 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-semibold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Location Details</span>
+                    <h4 className="text-xs font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>Location & Google Map</span>
                     </h4>
                     <button
                       onClick={() => setShowMapModal(true)}
-                      className="text-xs text-emerald-700 hover:text-emerald-800 font-semibold flex items-center gap-1 cursor-pointer"
+                      className="text-xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 font-semibold flex items-center gap-1 cursor-pointer"
                     >
-                      <span>Full Map</span>
+                      <span>Expand Map</span>
                       <Maximize2 className="w-3 h-3" />
                     </button>
                   </div>
-                  <div className="text-xs text-stone-800 space-y-1">
-                    <p className="font-semibold">{business.address}</p>
-                    <p className="text-stone-500">{business.area}, {business.city}</p>
-                    <p className="text-stone-500">{business.province} Province, Zambia</p>
+
+                  {/* Live Google Map Embedded in Business Window */}
+                  <div className="rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700/80 shadow-xs">
+                    <GoogleMapView
+                      businesses={allBusinesses || [business]}
+                      activeBusiness={business}
+                      center={{ latitude: business.coordinates.latitude, longitude: business.coordinates.longitude }}
+                      zoom={15}
+                      heightClass="h-[200px] sm:h-[230px]"
+                      showMapTypeControl={false}
+                    />
                   </div>
-                  <div className="pt-2 border-t border-stone-200/80 text-[11px] font-mono text-stone-500 flex items-center justify-between">
+
+                  <div className="text-xs text-stone-800 dark:text-stone-200 space-y-1">
+                    <p className="font-semibold">{business.address}</p>
+                    <p className="text-stone-500 dark:text-stone-400">{business.area}, {business.city}</p>
+                    <p className="text-stone-500 dark:text-stone-400">{business.province} Province, Zambia</p>
+                  </div>
+                  <div className="pt-2 border-t border-stone-200/80 dark:border-stone-800 text-[11px] font-mono text-stone-500 dark:text-stone-400 flex items-center justify-between">
                     <span>GPS: {business.coordinates.latitude.toFixed(4)}, {business.coordinates.longitude.toFixed(4)}</span>
                   </div>
-                  <button
-                    onClick={() => setShowMapModal(true)}
-                    className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <MapIcon className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>View Interactive Map & Neighbors</span>
-                  </button>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      onClick={() => setShowMapModal(true)}
+                      className="py-2 px-3 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <MapIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>Full Map</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onDirections(business);
+                      }}
+                      className="py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <Navigation className="w-3.5 h-3.5 text-white" />
+                      <span>In-App Directions</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Operating Hours */}
@@ -1400,168 +1454,68 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
           </button>
         </div>
 
-        {/* --- FULL SCREEN / EXPANDED INTERACTIVE MAP MODAL --- */}
+        {/* --- FULL SCREEN / EXPANDED INTERACTIVE GOOGLE MAP MODAL --- */}
         {showMapModal && (
-          <div className="absolute inset-0 z-60 bg-stone-950/90 backdrop-blur-md flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="absolute inset-0 z-60 bg-stone-950/95 backdrop-blur-md flex flex-col animate-in fade-in zoom-in-95 duration-200">
             {/* Map Top Bar */}
-            <div className="p-4 bg-stone-900 border-b border-stone-800 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white">
+            <div className="p-3.5 sm:p-4 bg-stone-900 border-b border-stone-800 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-xs">
                   <MapPin className="w-4 h-4" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-sm font-display text-white">
-                    {business.name} – Interactive Map & Surroundings
+                <div className="min-w-0">
+                  <h3 className="font-bold text-sm font-display text-white truncate">
+                    {business.name} – Live Interactive Google Map
                   </h3>
-                  <p className="text-xs text-stone-400 font-mono">
+                  <p className="text-xs text-stone-400 font-mono truncate">
                     Lat: {business.coordinates.latitude.toFixed(4)}, Lng: {business.coordinates.longitude.toFixed(4)} · {business.area}, {business.city}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                {/* Map style toggle */}
-                <div className="bg-stone-800 p-1 rounded-lg border border-stone-700 flex items-center gap-1 text-xs">
-                  <button
-                    onClick={() => setMapLayer('streets')}
-                    className={`px-2.5 py-1 rounded cursor-pointer ${
-                      mapLayer === 'streets' ? 'bg-emerald-600 text-white font-bold' : 'text-stone-400 hover:text-white'
-                    }`}
-                  >
-                    Streets
-                  </button>
-                  <button
-                    onClick={() => setMapLayer('satellite')}
-                    className={`px-2.5 py-1 rounded cursor-pointer ${
-                      mapLayer === 'satellite' ? 'bg-emerald-600 text-white font-bold' : 'text-stone-400 hover:text-white'
-                    }`}
-                  >
-                    Satellite
-                  </button>
-                </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setShowMapModal(false);
+                    onClose();
+                    onDirections(business);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                >
+                  <Navigation className="w-3.5 h-3.5 text-white" />
+                  <span>In-App Directions</span>
+                </button>
 
                 <button
                   onClick={() => setShowMapModal(false)}
-                  className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors cursor-pointer"
+                  className="p-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors cursor-pointer"
+                  title="Close Map View"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Interactive Map Canvas Simulator with surrounding landmarks */}
-            <div className="relative flex-1 bg-stone-950 overflow-hidden flex items-center justify-center select-none">
-              {/* Grid / Roads Representation */}
-              <div
-                className={`absolute inset-0 transition-opacity ${
-                  mapLayer === 'satellite' ? 'opacity-30 bg-stone-900' : 'opacity-80'
-                }`}
-                style={{
-                  backgroundImage: `
-                    radial-gradient(circle, #292524 1px, transparent 1px),
-                    linear-gradient(to right, #1c1917 1px, transparent 1px),
-                    linear-gradient(to bottom, #1c1917 1px, transparent 1px)
-                  `,
-                  backgroundSize: `${30 * (mapZoom / 15)}px ${30 * (mapZoom / 15)}px`,
+            {/* Live Interactive Google Map Container */}
+            <div className="relative flex-1 w-full h-full bg-stone-950 overflow-hidden">
+              <GoogleMapView
+                businesses={allBusinesses || [business]}
+                activeBusiness={business}
+                center={{ latitude: business.coordinates.latitude, longitude: business.coordinates.longitude }}
+                zoom={15}
+                heightClass="h-full w-full"
+                showMapTypeControl={true}
+                onDirections={(target) => {
+                  setShowMapModal(false);
+                  onClose();
+                  onDirections(target);
+                }}
+                onSelectBusiness={(selected) => {
+                  if (onSelectBusiness) {
+                    onSelectBusiness(selected);
+                  }
                 }}
               />
-
-              {/* Road vectors simulation */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40">
-                <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#44403c" strokeWidth={10 * (mapZoom / 15)} />
-                <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#44403c" strokeWidth={8 * (mapZoom / 15)} />
-                <line x1="20%" y1="0" x2="80%" y2="100%" stroke="#292524" strokeWidth="4" />
-                <line x1="10%" y1="90%" x2="90%" y2="20%" stroke="#292524" strokeWidth="4" />
-              </svg>
-
-              {/* Center Beacon: Active Business */}
-              <div className="relative z-10 flex flex-col items-center">
-                <div className="relative">
-                  <div className="absolute -inset-3 bg-emerald-500/30 rounded-full animate-ping" />
-                  <div className="w-12 h-12 rounded-full bg-emerald-600 border-3 border-white shadow-2xl flex items-center justify-center text-white relative z-10">
-                    <Building2 className="w-6 h-6" />
-                  </div>
-                </div>
-
-                {/* Info Card pinned to marker */}
-                <div className="mt-3 bg-stone-900/95 border border-stone-700 p-3 rounded-xl shadow-2xl text-center text-white max-w-xs backdrop-blur-md">
-                  <div className="font-bold text-sm text-emerald-400">{business.name}</div>
-                  <div className="text-xs text-stone-300 mt-0.5">{business.address}</div>
-                  <div className="flex items-center justify-center gap-2 mt-2 text-[11px]">
-                    <span className="bg-emerald-950 text-emerald-300 border border-emerald-800 px-1.5 py-0.5 rounded font-mono">
-                      {business.categoryName}
-                    </span>
-                    <span className="text-amber-300 font-bold">★ {business.rating}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Surrounding Landmarks & Points of Interest */}
-              <div className="absolute top-1/4 left-1/4 z-10 flex items-center gap-1.5 bg-stone-900/80 border border-stone-700 px-2 py-1 rounded-lg text-[11px] text-stone-300">
-                <MapPin className="w-3 h-3 text-sky-400" />
-                <span>Kitwe City Square (1.2 km)</span>
-              </div>
-
-              <div className="absolute top-1/3 right-1/4 z-10 flex items-center gap-1.5 bg-stone-900/80 border border-stone-700 px-2 py-1 rounded-lg text-[11px] text-stone-300">
-                <MapPin className="w-3 h-3 text-amber-400" />
-                <span>Mukwa Gardens Lodge (0.6 km)</span>
-              </div>
-
-              <div className="absolute bottom-1/4 left-1/3 z-10 flex items-center gap-1.5 bg-stone-900/80 border border-stone-700 px-2 py-1 rounded-lg text-[11px] text-stone-300">
-                <MapPin className="w-3 h-3 text-rose-400" />
-                <span>Nkana Hospital & Pharmacy (1.8 km)</span>
-              </div>
-
-              <div className="absolute bottom-1/3 right-1/5 z-10 flex items-center gap-1.5 bg-stone-900/80 border border-stone-700 px-2 py-1 rounded-lg text-[11px] text-stone-300">
-                <MapPin className="w-3 h-3 text-emerald-400" />
-                <span>Independence Ave ATM Hub (0.4 km)</span>
-              </div>
-
-              {/* Zoom Controls */}
-              <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-1.5 bg-stone-900 border border-stone-700 rounded-xl p-1 shadow-xl">
-                <button
-                  onClick={() => setMapZoom((z) => Math.min(z + 1, 20))}
-                  className="p-2 text-stone-300 hover:text-white hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
-                  title="Zoom In"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setMapZoom((z) => Math.max(z - 1, 10))}
-                  className="p-2 text-stone-300 hover:text-white hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
-                  title="Zoom Out"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setMapZoom(15)}
-                  className="p-2 text-stone-300 hover:text-white hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
-                  title="Reset Zoom"
-                >
-                  <Compass className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Bottom Nav Actions Bar on Map */}
-              <div className="absolute bottom-6 left-6 z-20 flex flex-wrap items-center gap-2">
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${business.coordinates.latitude},${business.coordinates.longitude}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg transition-colors cursor-pointer"
-                >
-                  <Navigation className="w-3.5 h-3.5" />
-                  <span>Open in Google Maps Directions</span>
-                  <ExternalLink className="w-3 h-3 opacity-80" />
-                </a>
-
-                <button
-                  onClick={() => onDirections(business)}
-                  className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 text-stone-200 border border-stone-700 rounded-xl text-xs font-medium transition-colors cursor-pointer shadow-lg"
-                >
-                  Calculate Driving Distance
-                </button>
-              </div>
             </div>
           </div>
         )}

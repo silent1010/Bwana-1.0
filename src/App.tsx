@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, ShieldCheck, Store, Compass, Truck, ShoppingBag, User, Clock, X, LogOut } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Store, Compass, Truck, ShoppingBag, User, Clock, X, LogOut, CheckCircle2 } from 'lucide-react';
 import { useCart } from './context/CartContext';
 import {
   checkIsSessionExpired,
@@ -30,10 +30,11 @@ import { EngineeringSpec } from './components/architecture/EngineeringSpec';
 import { UserDashboard } from './components/user/UserDashboard';
 import { LocationPickerModal } from './components/common/LocationPickerModal';
 import { SearchEngineModal } from './components/common/SearchEngineModal';
-import { AuthModal } from './components/auth/AuthModal';
 import { UserAuthModal } from './components/auth/UserAuthModal';
 import { NrcFacialVerificationModal } from './components/auth/NrcFacialVerificationModal';
 import { BusinessLoginModal } from './components/auth/BusinessLoginModal';
+import { UnifiedAuthModal } from './components/auth/UnifiedAuthModal';
+import { BusinessRegistrationPage } from './components/business/BusinessRegistrationPage';
 import { AdminGateModal } from './components/auth/AdminGateModal';
 import { NotificationsDrawer } from './components/common/NotificationsDrawer';
 import { ApiConsoleModal } from './components/common/ApiConsoleModal';
@@ -46,6 +47,12 @@ import { QrStickerModal } from './components/common/QrStickerModal';
 import { SidebarDrawer } from './components/layout/SidebarDrawer';
 import { OfflineCacheBanner } from './components/common/OfflineCacheBanner';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { DirectChatModal } from './components/chat/DirectChatModal';
+import { UserConversationsDrawer } from './components/chat/UserConversationsDrawer';
+import { DATABASE_CATEGORIES } from './services/dbSeeder';
+import { APIProvider } from '@vis.gl/react-google-maps';
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 import {
   Business,
@@ -65,14 +72,6 @@ import {
 
 import {
   LOCATIONS,
-  INITIAL_BUSINESSES,
-  INITIAL_PROFESSIONALS,
-  INITIAL_EVENTS,
-  INITIAL_OPPORTUNITIES,
-  INITIAL_NOTIFICATIONS,
-  INITIAL_VERIFICATIONS,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_REVIEWS,
   SYSTEM_USERS,
   calculateDistanceKm,
 } from './data/mockData';
@@ -95,6 +94,10 @@ import {
   createAuditLogInFirestore,
   createNotificationInFirestore,
   markNotificationReadInFirestore,
+  createProfessionalInFirestore,
+  createOpportunityInFirestore,
+  subscribeToCategories,
+  subscribeToUserConversations,
 } from './services/firebase';
 
 export default function App() {
@@ -106,16 +109,25 @@ export default function App() {
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [isLiveConnected, setIsLiveConnected] = useState<boolean>(true);
 
-  // Core Data State (Live synchronized with Firestore)
-  const [businesses, setBusinesses] = useState<Business[]>(INITIAL_BUSINESSES);
-  const [reviews, setReviews] = useState<BusinessReview[]>(INITIAL_REVIEWS);
-  const [verifications, setVerifications] = useState<VerificationRequest[]>(INITIAL_VERIFICATIONS);
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
-  const [professionals, setProfessionals] = useState<Professional[]>(INITIAL_PROFESSIONALS);
-  const [events, setEvents] = useState<EventItem[]>(INITIAL_EVENTS);
-  const [opportunities, setOpportunities] = useState<OpportunityItem[]>(INITIAL_OPPORTUNITIES);
-  const [notifications, setNotifications] = useState<BwanaNotification[]>(INITIAL_NOTIFICATIONS);
-  const [savedBusinessIds, setSavedBusinessIds] = useState<string[]>(['biz-abc-hardware']);
+  // Google Maps API Quota alert state
+  const [quotaExceeded, setQuotaExceeded] = useState<boolean>(false);
+
+  useEffect(() => {
+    const quotaHandler = () => setQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', quotaHandler);
+    return () => window.removeEventListener('gmp-quota-exceeded', quotaHandler);
+  }, []);
+
+  // Core Data State (Pure live synchronization with Firestore database)
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [reviews, setReviews] = useState<BusinessReview[]>([]);
+  const [verifications, setVerifications] = useState<VerificationRequest[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [opportunities, setOpportunities] = useState<OpportunityItem[]>([]);
+  const [notifications, setNotifications] = useState<BwanaNotification[]>([]);
+  const [savedBusinessIds, setSavedBusinessIds] = useState<string[]>([]);
 
   // Modals & Drawers State
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -134,8 +146,13 @@ export default function App() {
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [qrStickerModalBiz, setQrStickerModalBiz] = useState<Business | null>(null);
   const { totalItems: totalCartItems } = useCart();
+  const [categories, setCategories] = useState<Category[]>(DATABASE_CATEGORIES);
+  const [directChatBiz, setDirectChatBiz] = useState<Business | null>(null);
+  const [conversationsDrawerOpen, setConversationsDrawerOpen] = useState(false);
+  const [unreadChatMessagesCount, setUnreadChatMessagesCount] = useState(0);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [claimModalBiz, setClaimModalBiz] = useState<Business | null>(null);
+  const [activeRouteDestination, setActiveRouteDestination] = useState<Business | null>(null);
 
   // Inactivity timeout notice state (10-minute timeout)
   const [sessionTimeoutNotice, setSessionTimeoutNotice] = useState<string | null>(() => {
@@ -199,8 +216,85 @@ export default function App() {
     return '';
   });
 
+  // Active Merchant Business ID (for dynamic BusinessDashboard routing)
+  const [activeBusinessId, setActiveBusinessId] = useState<string>(() => {
+    try {
+      const biz = getStoredBusinessSession();
+      return (biz as any)?.businessId || 'biz-abc-hardware';
+    } catch {
+      return 'biz-abc-hardware';
+    }
+  });
+  const [currentBusinessOwnerBiz, setCurrentBusinessOwnerBiz] = useState<Business | null>(null);
+
+  // Visual success notification banner for business registration
+  const [registrationSuccessToast, setRegistrationSuccessToast] = useState<{
+    businessName: string;
+    city: string;
+    businessId: string;
+  } | null>(null);
+
+  // Unified Handler for newly registered businesses: sets owner state, switches dashboard, and sends notification
+  const handleBusinessRegistrationSuccess = (newBiz: Business, applicantEmail?: string) => {
+    setBusinesses((prev) => [newBiz, ...prev.filter((b) => b.id !== newBiz.id)]);
+    setCurrentBusinessOwnerBiz(newBiz);
+    setActiveBusinessId(newBiz.id);
+    setIsAuthenticated(true);
+    setCurrentRole('business_owner');
+    setCurrentUserEmail(applicantEmail || newBiz.email || 'merchant@bwana.zm');
+    setCurrentUserName(newBiz.name);
+    setCurrentTab('business_dashboard');
+
+    const session = {
+      email: applicantEmail || newBiz.email || 'merchant@bwana.zm',
+      role: 'business_owner' as UserRole,
+      name: newBiz.name,
+      businessId: newBiz.id,
+      businessName: newBiz.name,
+    };
+    setBusinessSession(session);
+    saveBusinessSession(session);
+    recordUserActivity();
+    setSessionTimeoutNotice(null);
+
+    const regNotif: BwanaNotification = {
+      id: `notif-reg-${Date.now()}`,
+      recipientType: 'business',
+      title: 'Business Registration Successful 🎉',
+      message: `${newBiz.name} is now registered in ${newBiz.city} and discoverable on Bwana.`,
+      timestamp: 'Just now',
+      read: false,
+      iconType: 'verification',
+      linkAction: newBiz.id,
+    };
+    setNotifications((prev) => [regNotif, ...prev]);
+
+    setRegistrationSuccessToast({
+      businessName: newBiz.name,
+      city: newBiz.city,
+      businessId: newBiz.id,
+    });
+  };
+
   // Real-Time Firestore Synchronization
   useEffect(() => {
+    // Purge any stale mock data left in client localStorage
+    try {
+      const stored = localStorage.getItem('bwana_offline_businesses_v1');
+      if (stored && (stored.includes('biz-abc-hardware') || stored.includes('Copper & Thyme') || stored.includes('Riverside Master'))) {
+        localStorage.removeItem('bwana_offline_businesses_v1');
+        localStorage.removeItem('bwana_offline_meta_v1');
+      }
+      const savedIds = localStorage.getItem('bwana_saved_biz_ids');
+      if (savedIds && savedIds.includes('biz-abc-hardware')) {
+        localStorage.removeItem('bwana_saved_biz_ids');
+      }
+      const savedOrders = localStorage.getItem('bwana_orders');
+      if (savedOrders && savedOrders.includes('ord-1001')) {
+        localStorage.removeItem('bwana_orders');
+      }
+    } catch {}
+
     const unsubBiz = subscribeToBusinesses((liveBiz) => {
       setBusinesses(liveBiz);
       setIsLiveConnected(true);
@@ -234,6 +328,10 @@ export default function App() {
       setOpportunities(liveOpp);
     });
 
+    const unsubCats = subscribeToCategories((liveCats) => {
+      setCategories(liveCats);
+    });
+
     return () => {
       if (typeof unsubBiz === 'function') unsubBiz();
       if (typeof unsubRev === 'function') unsubRev();
@@ -243,8 +341,25 @@ export default function App() {
       if (typeof unsubProf === 'function') unsubProf();
       if (typeof unsubEvents === 'function') unsubEvents();
       if (typeof unsubOpp === 'function') unsubOpp();
+      if (typeof unsubCats === 'function') unsubCats();
     };
   }, []);
+
+  // Real-time listener for user in-app chat conversations & unread badges
+  useEffect(() => {
+    const effectiveUserId =
+      currentUserAccount?.id || localStorage.getItem('bwana_chat_guest_id') || '';
+    if (!effectiveUserId) return;
+
+    const unsubUserConvos = subscribeToUserConversations(effectiveUserId, (convos) => {
+      const totalUnread = convos.reduce((acc, c) => acc + (c.unreadCountForUser || 0), 0);
+      setUnreadChatMessagesCount(totalUnread);
+    });
+
+    return () => {
+      if (typeof unsubUserConvos === 'function') unsubUserConvos();
+    };
+  }, [currentUserAccount]);
 
   // Sync selectedBusiness with live businesses if modified in Firestore
   useEffect(() => {
@@ -405,7 +520,13 @@ export default function App() {
 
   const handleDirections = (biz: Business, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setSelectedBusiness(biz);
+    setSelectedBusiness(null); // Close profile modal so user is taken directly to map
+    setActiveRouteDestination(biz);
+    setCurrentTab('discover');
+    setTimeout(() => {
+      const el = document.getElementById('businesses-near-you-section');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   const handleToggleSave = (bizId: string, e?: React.MouseEvent) => {
@@ -608,6 +729,53 @@ export default function App() {
       await createNotificationInFirestore(newNotif);
     } catch (err) {
       console.error('Failed to reject verification in Firestore:', err);
+    }
+  };
+
+  const handleApproveGoogleMapsBusiness = async (businessId: string) => {
+    setBusinesses((prev) =>
+      prev.map((b) =>
+        b.id === businessId
+          ? { ...b, verificationStatus: 'verified', verificationTier: 'bwana_verified' }
+          : b
+      )
+    );
+
+    const biz = businesses.find((b) => b.id === businessId);
+    const newLog: AuditLogEntry = {
+      id: `aud-${Date.now()}`,
+      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      actor: currentUserEmail || 'm.mumba8@gmail.com',
+      role: 'admin',
+      action: 'GOOGLE_MAPS_BUSINESS_VERIFIED',
+      targetEntity: 'Business',
+      targetId: businessId,
+      details: `Google Maps listed business "${biz?.name || businessId}" approved & verified by Admin. Granted Bwana Verified Badge (✓).`,
+      ipAddress: '102.144.92.10 (Internal)',
+    };
+    setAuditLogs((prev) => [newLog, ...prev]);
+
+    const newNotif: BwanaNotification = {
+      id: `notif-${Date.now()}`,
+      recipientType: 'business',
+      title: 'Google Maps Place Verified ✓',
+      message: `${biz?.name || 'Business'} has been verified from Google Maps records and awarded official Bwana Verified status.`,
+      timestamp: 'Just now',
+      read: false,
+      iconType: 'verification',
+      linkAction: businessId,
+    };
+    setNotifications((prev) => [newNotif, ...prev]);
+
+    try {
+      await updateBusinessInFirestore(businessId, {
+        verificationStatus: 'verified',
+        verificationTier: 'bwana_verified',
+      });
+      await createAuditLogInFirestore(newLog);
+      await createNotificationInFirestore(newNotif);
+    } catch (err) {
+      console.error('Failed to verify Google Maps business in Firestore:', err);
     }
   };
 
@@ -845,6 +1013,70 @@ export default function App() {
     }
   };
 
+  const handleAddProfessional = async (newPro: Professional) => {
+    // Real-time optimistic state update
+    setProfessionals((prev) => [newPro, ...prev]);
+
+    // Send platform notification
+    const proNotif: BwanaNotification = {
+      id: `notif-${Date.now()}`,
+      recipientType: 'professional',
+      title: 'Skill Showcase Published Online',
+      message: `${newPro.name} has been published to the Zambia Pros Directory in ${newPro.field || 'Contractor Services'} (${newPro.isVerified ? 'Verified Credentials' : 'Standard'}).`,
+      timestamp: 'Just now',
+      read: false,
+      iconType: 'verification',
+      linkAction: newPro.id,
+    };
+    setNotifications((prev) => [proNotif, ...prev]);
+
+    // Record audit trail
+    const proAudit: AuditLogEntry = {
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      actor: currentUserEmail || newPro.name,
+      role: currentRole,
+      action: 'PROFESSIONAL_SKILL_SHOWCASE_CREATED',
+      targetEntity: 'professional',
+      targetId: newPro.id,
+      details: `Showcased ${newPro.name} (${newPro.title}) in ${newPro.field} with documentation: ${newPro.qualificationDocType || 'None'}`,
+      ipAddress: '102.140.231.84',
+    };
+    setAuditLogs((prev) => [proAudit, ...prev]);
+
+    try {
+      await createProfessionalInFirestore(newPro);
+      await createNotificationInFirestore(proNotif);
+      await createAuditLogInFirestore(proAudit);
+    } catch (err) {
+      console.error('Failed to save professional in Firestore:', err);
+    }
+  };
+
+  const handleCreateOpportunity = async (newOpp: OpportunityItem) => {
+    // Real-time optimistic update
+    setOpportunities((prev) => [newOpp, ...prev]);
+
+    const oppNotif: BwanaNotification = {
+      id: `notif-${Date.now()}`,
+      recipientType: 'business',
+      title: 'New Tender / Opportunity Published',
+      message: `${newOpp.title} by ${newOpp.organization} is now live on the tenders board.`,
+      timestamp: 'Just now',
+      read: false,
+      iconType: 'promotion',
+      linkAction: newOpp.id,
+    };
+    setNotifications((prev) => [oppNotif, ...prev]);
+
+    try {
+      await createOpportunityInFirestore(newOpp);
+      await createNotificationInFirestore(oppNotif);
+    } catch (err) {
+      console.error('Failed to save opportunity in Firestore:', err);
+    }
+  };
+
   // Canonical ABC Hardware business for owner dashboard view
   const abcHardwareBiz =
     businesses.find((b) => b.id === 'biz-abc-hardware') || businesses[0];
@@ -852,9 +1084,35 @@ export default function App() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden flex flex-col bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-sans selection:bg-emerald-600 selection:text-white transition-colors duration-200">
-      {/* 1. Header Navigation Contract */}
-      <Navbar
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} region="ZM" language="en">
+      <div className="min-h-screen w-full max-w-full overflow-x-hidden flex flex-col bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-sans selection:bg-emerald-600 selection:text-white transition-colors duration-200">
+        {/* Google Maps Quota Exhaustion Sticky Banner */}
+        {quotaExceeded && (
+          <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm flex items-center justify-between">
+            <div className="flex-1 text-center">
+              Google Maps Platform quota reached. If you are the app owner, visit{' '}
+              <a
+                href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-semibold text-amber-950 hover:text-amber-800"
+              >
+                maps developer site
+              </a>{' '}
+              for instructions to update your account.
+            </div>
+            <button
+              onClick={() => setQuotaExceeded(false)}
+              className="p-1 hover:bg-amber-100 rounded text-amber-800 ml-2 cursor-pointer"
+              aria-label="Dismiss quota notice"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* 1. Header Navigation Contract */}
+        <Navbar
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         currentRole={currentRole}
@@ -865,9 +1123,12 @@ export default function App() {
         onOpenAuth={() => setAuthModalOpen(true)}
         onOpenApiConsole={() => setApiConsoleModalOpen(true)}
         onOpenBusinessLogin={() => setBusinessLoginModalOpen(true)}
+        onOpenRegisterBusiness={() => setCurrentTab('register_business')}
         onOpenAdminGate={() => setAdminGateModalOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onOpenCart={() => setCartDrawerOpen(true)}
+        onOpenMessages={() => setConversationsDrawerOpen(true)}
+        unreadMessagesCount={unreadChatMessagesCount}
         unreadCount={unreadCount}
         isAuthenticated={isAuthenticated}
         isNrcVerified={Boolean(currentUserAccount?.isNrcVerified)}
@@ -876,6 +1137,44 @@ export default function App() {
         onSignOut={handleSignOut}
         savedCount={savedBusinessIds.length}
       />
+
+      {/* Visual Success Notification for New Business Registration */}
+      {registrationSuccessToast && (
+        <div className="bg-emerald-600 text-white px-4 py-3 shadow-lg flex items-center justify-between gap-3 animate-fade-in transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-extrabold flex items-center gap-2">
+                <span>Business Registered Successfully!</span>
+                <span className="bg-emerald-700/80 px-2 py-0.5 rounded text-[10px] font-mono">Live on Bwana</span>
+              </div>
+              <p className="text-[11px] sm:text-xs text-emerald-100">
+                "{registrationSuccessToast.businessName}" is now active in {registrationSuccessToast.city}. You are logged into your merchant dashboard.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                const biz = businesses.find((b) => b.id === registrationSuccessToast.businessId);
+                if (biz) setSelectedBusiness(biz);
+              }}
+              className="px-3 py-1.5 bg-white text-emerald-800 rounded-lg text-xs font-bold hover:bg-emerald-50 transition-colors shadow-2xs cursor-pointer"
+            >
+              View Listing
+            </button>
+            <button
+              onClick={() => setRegistrationSuccessToast(null)}
+              className="p-1 hover:bg-white/20 rounded text-emerald-100 hover:text-white cursor-pointer"
+              title="Dismiss notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 10-Minute Inactivity Session Timeout Alert Notice */}
       {sessionTimeoutNotice && (
@@ -916,6 +1215,7 @@ export default function App() {
         {currentTab === 'discover' && (
           <HomeScreen
             businesses={businesses}
+            categories={categories}
             currentLocation={currentLocation}
             onOpenLocationModal={() => setLocationModalOpen(true)}
             onOpenSearch={() => setSearchModalOpen(true)}
@@ -923,6 +1223,7 @@ export default function App() {
             onCall={handleCall}
             onWhatsApp={handleWhatsApp}
             onDirections={handleDirections}
+            onChat={(biz) => setDirectChatBiz(biz)}
             savedBusinessIds={savedBusinessIds}
             onToggleSave={handleToggleSave}
             onSelectCategory={handleCategorySelect}
@@ -930,12 +1231,15 @@ export default function App() {
             onOpenLogistics={() => setLogisticsModalOpen(true)}
             onOpenScouts={() => setScoutsModalOpen(true)}
             onOpenCart={() => setCartDrawerOpen(true)}
+            activeRouteDestination={activeRouteDestination}
+            onClearActiveRoute={() => setActiveRouteDestination(null)}
           />
         )}
 
         {currentTab === 'businesses' && (
           <SearchResults
             businesses={businesses}
+            categories={categories}
             currentLocation={currentLocation}
             selectedCategory={selectedCategory}
             onSelectCategory={setSelectedCategory}
@@ -945,6 +1249,7 @@ export default function App() {
             onCall={handleCall}
             onWhatsApp={handleWhatsApp}
             onDirections={handleDirections}
+            onChat={(biz) => setDirectChatBiz(biz)}
             savedBusinessIds={savedBusinessIds}
             onToggleSave={handleToggleSave}
             onOpenClaimModal={(biz) => setClaimModalBiz(biz)}
@@ -957,6 +1262,16 @@ export default function App() {
             currentLocation={currentLocation}
             onCall={handleCall}
             onWhatsApp={handleWhatsApp}
+            currentUser={{
+              isAuthenticated,
+              email: currentUserEmail,
+              name: currentUserName || (currentUserEmail ? currentUserEmail.split('@')[0] : 'Public Viewer'),
+              role: currentRole,
+              isNrcVerified: Boolean(currentUserAccount?.isNrcVerified),
+              userAccount: currentUserAccount,
+            }}
+            onOpenAuth={() => setAuthModalOpen(true)}
+            onAddProfessional={handleAddProfessional}
           />
         )}
 
@@ -969,7 +1284,17 @@ export default function App() {
         )}
 
         {currentTab === 'opportunities' && (
-          <OpportunitiesList opportunities={opportunities} />
+          <OpportunitiesList
+            opportunities={opportunities}
+            currentUser={{
+              isAuthenticated,
+              email: currentUserEmail,
+              name: currentUserName || (currentUserEmail ? currentUserEmail.split('@')[0] : 'Public Viewer'),
+              role: currentRole,
+            }}
+            onCreateOpportunity={handleCreateOpportunity}
+            onOpenAuth={() => setAuthModalOpen(true)}
+          />
         )}
 
         {currentTab === 'favorites' && (
@@ -987,8 +1312,17 @@ export default function App() {
 
         {currentTab === 'business_dashboard' && (
           <BusinessDashboard
-            business={abcHardwareBiz}
-            onUpdateBusiness={handleUpdateBusiness}
+            business={
+              currentBusinessOwnerBiz ||
+              businesses.find((b) => b.id === activeBusinessId) ||
+              abcHardwareBiz
+            }
+            onUpdateBusiness={(updated) => {
+              if (currentBusinessOwnerBiz && currentBusinessOwnerBiz.id === updated.id) {
+                setCurrentBusinessOwnerBiz(updated);
+              }
+              handleUpdateBusiness(updated);
+            }}
             onSwitchView={(tab) => setCurrentTab(tab)}
             reviews={reviews}
             onRespondToReview={handleRespondToReview}
@@ -997,19 +1331,24 @@ export default function App() {
         )}
 
         {currentTab === 'register_business' && (
-          <BusinessRegistrationPortal
-            onRegisterBusiness={handleRegisterBusiness}
-            onNavigateToAdmin={() => {
-              setCurrentRole('admin');
-              setCurrentTab('admin_dashboard');
-            }}
-            onNavigateToDiscovery={(bizId) => {
-              setCurrentTab('businesses');
-              if (bizId) {
-                const found = businesses.find((b) => b.id === bizId);
-                if (found) setSelectedBusiness(found);
+          <BusinessRegistrationPage
+            onSuccess={(email, role, name, business) => {
+              if (business) {
+                handleBusinessRegistrationSuccess(business, email);
+              } else {
+                setIsAuthenticated(true);
+                setCurrentUserEmail(email);
+                setCurrentRole('business_owner');
+                setCurrentUserName(name || 'Business Owner');
+                setCurrentTab('business_dashboard');
+                recordUserActivity();
+                setSessionTimeoutNotice(null);
               }
             }}
+            onBusinessRegistered={(newBiz) => {
+              handleBusinessRegistrationSuccess(newBiz);
+            }}
+            onNavigateHome={() => setCurrentTab('discover')}
           />
         )}
 
@@ -1020,12 +1359,14 @@ export default function App() {
             auditLogs={auditLogs}
             onApproveVerification={handleApproveVerification}
             onRejectVerification={handleRejectVerification}
+            onApproveGoogleMapsBusiness={handleApproveGoogleMapsBusiness}
             onNavigateToBusiness={(bizId) => {
               const found = businesses.find((b) => b.id === bizId);
               if (found) {
                 setSelectedBusiness(found);
               }
             }}
+            onDirections={handleDirections}
           />
         )}
 
@@ -1087,6 +1428,7 @@ export default function App() {
         onCall={handleCall}
         onWhatsApp={handleWhatsApp}
         onDirections={handleDirections}
+        onChat={(biz) => setDirectChatBiz(biz)}
         isSaved={selectedBusiness ? savedBusinessIds.includes(selectedBusiness.id) : false}
         onToggleSave={handleToggleSave}
         onOpenClaimModal={(biz) => {
@@ -1122,12 +1464,44 @@ export default function App() {
         onSubmitClaim={handleClaimSubmit}
       />
 
-      {/* User Registration & Login Modal: Google, Facebook, Phone SMS, and Email */}
-      <UserAuthModal
+      {/* Unified User & Customer Authentication & Registration Modal */}
+      <UnifiedAuthModal
         isOpen={authModalOpen}
+        initialPersona="customer"
+        initialMode="signin"
         onClose={() => setAuthModalOpen(false)}
-        onAuthSuccess={handleUserAuthSuccess}
-        actionPrompt="Sign in with Google, Facebook, Phone, or Email to complete NRC verification & review businesses"
+        onLoginSuccess={(email, role, name, business) => {
+          if (business) {
+            handleBusinessRegistrationSuccess(business, email);
+          } else {
+            setIsAuthenticated(true);
+            setCurrentUserEmail(email);
+            setCurrentRole(role);
+            setCurrentUserName(name || email.split('@')[0]);
+            if (role === 'business_owner' || role === 'business') {
+              setCurrentTab('business_dashboard');
+              const matchedBiz = businesses.find((b) => b.email === email || b.claimedByUserId === email);
+              if (matchedBiz) {
+                setCurrentBusinessOwnerBiz(matchedBiz);
+                setActiveBusinessId(matchedBiz.id);
+              }
+              const session = {
+                email,
+                role,
+                name: matchedBiz?.name || name || 'Verified Merchant',
+                businessId: matchedBiz?.id || activeBusinessId || 'biz-abc-hardware',
+                businessName: matchedBiz?.name || name || 'ABC Hardware & Supplies',
+              };
+              setBusinessSession(session);
+              saveBusinessSession(session);
+            }
+            recordUserActivity();
+            setSessionTimeoutNotice(null);
+          }
+        }}
+        onBusinessRegistered={(newBiz) => {
+          handleBusinessRegistrationSuccess(newBiz);
+        }}
       />
 
       {/* Zambian National Registration Card (NRC) Upload & Live Biometric Facial Scan */}
@@ -1138,27 +1512,41 @@ export default function App() {
         onVerificationComplete={handleNrcVerificationComplete}
       />
 
-      {/* Dedicated Business Merchant Login Modal */}
-      <BusinessLoginModal
+      {/* Dedicated Business Merchant Login & Registration Modal */}
+      <UnifiedAuthModal
         isOpen={businessLoginModalOpen}
+        initialPersona="business"
+        initialMode="signin"
         onClose={() => setBusinessLoginModalOpen(false)}
-        onLoginSuccess={(email, role, name) => {
-          setIsAuthenticated(true);
-          setCurrentUserEmail(email);
-          setCurrentRole(role);
-          setCurrentUserName(name || 'Business Owner');
-          setCurrentTab('business_dashboard');
-          const session = {
-            email,
-            role,
-            name: name || 'ABC Hardware & Supplies',
-            businessId: 'biz-abc-hardware',
-            businessName: 'ABC Hardware & Supplies',
-          };
-          setBusinessSession(session);
-          saveBusinessSession(session);
-          recordUserActivity();
-          setSessionTimeoutNotice(null);
+        onLoginSuccess={(email, role, name, business) => {
+          if (business) {
+            handleBusinessRegistrationSuccess(business, email);
+          } else {
+            setIsAuthenticated(true);
+            setCurrentUserEmail(email);
+            setCurrentRole(role);
+            setCurrentUserName(name || 'Business Owner');
+            setCurrentTab('business_dashboard');
+            const matchedBiz = businesses.find((b) => b.email === email || b.claimedByUserId === email);
+            if (matchedBiz) {
+              setCurrentBusinessOwnerBiz(matchedBiz);
+              setActiveBusinessId(matchedBiz.id);
+            }
+            const session = {
+              email,
+              role,
+              name: matchedBiz?.name || name || 'Business Owner',
+              businessId: matchedBiz?.id || activeBusinessId || 'biz-abc-hardware',
+              businessName: matchedBiz?.name || name || 'Business Owner',
+            };
+            setBusinessSession(session);
+            saveBusinessSession(session);
+            recordUserActivity();
+            setSessionTimeoutNotice(null);
+          }
+        }}
+        onBusinessRegistered={(newBiz) => {
+          handleBusinessRegistrationSuccess(newBiz);
         }}
       />
 
@@ -1213,6 +1601,7 @@ export default function App() {
         onOpenAdminGate={() => setAdminGateModalOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onOpenCart={() => setCartDrawerOpen(true)}
+        onOpenMessages={() => setConversationsDrawerOpen(true)}
         onOpenScouts={() => setScoutsModalOpen(true)}
         onOpenLogistics={() => setLogisticsModalOpen(true)}
         onOpenWholesale={() => setWholesaleModalOpen(true)}
@@ -1289,6 +1678,26 @@ export default function App() {
         />
       )}
 
+      {/* Direct In-App User-to-Business Chat Modal (No WhatsApp required) */}
+      <DirectChatModal
+        isOpen={Boolean(directChatBiz)}
+        onClose={() => setDirectChatBiz(null)}
+        business={directChatBiz}
+        currentUser={currentUserAccount}
+        onCall={handleCall}
+      />
+
+      {/* User In-App Conversations Drawer */}
+      <UserConversationsDrawer
+        isOpen={conversationsDrawerOpen}
+        onClose={() => setConversationsDrawerOpen(false)}
+        currentUser={currentUserAccount}
+        businesses={businesses}
+        onSelectConversation={(biz) => {
+          setDirectChatBiz(biz);
+        }}
+      />
+
       {/* 5. Stitch Mobile Platform Bottom Navigation Bar */}
       <nav aria-label="Mobile Navigation" className="fixed bottom-0 left-0 right-0 z-40 bg-stone-950/95 dark:bg-stone-950/95 backdrop-blur-md border-t border-stone-800 text-stone-400 md:hidden py-1 px-3 shadow-2xl">
         <div className="grid grid-cols-5 items-center text-center">
@@ -1361,6 +1770,7 @@ export default function App() {
           </button>
         </div>
       </nav>
-    </div>
+      </div>
+    </APIProvider>
   );
 }

@@ -5,7 +5,6 @@ import {
   Lock,
   ArrowRight,
   ShieldCheck,
-  Building2,
   AlertCircle,
   Eye,
   EyeOff
@@ -16,15 +15,17 @@ interface BusinessLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (email: string, role: UserRole, name?: string) => void;
+  onOpenRegisterBusiness?: () => void;
 }
 
 export const BusinessLoginModal: React.FC<BusinessLoginModalProps> = ({
   isOpen,
   onClose,
   onLoginSuccess,
+  onOpenRegisterBusiness,
 }) => {
-  const [email, setEmail] = useState('owner@abchardware.co.zm');
-  const [password, setPassword] = useState('••••••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,8 +35,8 @@ export const BusinessLoginModal: React.FC<BusinessLoginModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) {
-      setError('Please provide your business account email.');
+    if (!email.trim() || !password.trim()) {
+      setError('Please provide your business account email and password.');
       return;
     }
     setError(null);
@@ -50,17 +51,6 @@ export const BusinessLoginModal: React.FC<BusinessLoginModalProps> = ({
       );
       onClose();
     }, 400);
-  };
-
-  const handleDemoPreset = () => {
-    setEmail('owner@abchardware.co.zm');
-    setPassword('demo-merchant-pass');
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      onLoginSuccess('owner@abchardware.co.zm', 'business_owner', 'ABC Hardware & Supplies');
-      onClose();
-    }, 300);
   };
 
   return (
@@ -175,18 +165,23 @@ export const BusinessLoginModal: React.FC<BusinessLoginModalProps> = ({
             )}
           </button>
 
-          {/* Quick Demo Access for Verified Business */}
-          <div className="pt-3 border-t border-stone-200 dark:border-stone-800 space-y-2">
-            <div className="text-[11px] text-stone-500 dark:text-stone-400 text-center">
-              Demonstration or testing?
-            </div>
+          {/* Direct link to Register a New Business */}
+          <div className="pt-2 text-center border-t border-stone-200 dark:border-stone-800">
+            <p className="text-xs text-stone-500 dark:text-stone-400 mb-2">
+              New business owner in Zambia?
+            </p>
             <button
               type="button"
-              onClick={handleDemoPreset}
-              className="w-full py-2.5 px-3 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              onClick={() => {
+                onClose();
+                if (onOpenRegisterBusiness) {
+                  onOpenRegisterBusiness();
+                }
+              }}
+              className="w-full py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>1-Click Sign-in: ABC Hardware & Supplies</span>
+              <Store className="w-4 h-4 text-emerald-600" />
+              <span>Register New Business (Free PACRA Listing) →</span>
             </button>
           </div>
         </form>

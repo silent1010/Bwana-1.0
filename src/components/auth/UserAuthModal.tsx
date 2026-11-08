@@ -12,7 +12,6 @@ import {
   Eye,
   EyeOff,
   Sparkles,
-  Zap,
   Smartphone,
   KeyRound,
   ShieldAlert
@@ -36,7 +35,7 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
   actionPrompt = 'Join Bwana to rate local shops, order goods, and save your favorites',
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
-  const [authMethod, setAuthMethod] = useState<'quick' | 'phone' | 'email'>('quick');
+  const [authMethod, setAuthMethod] = useState<'phone' | 'email'>('phone');
 
   // Form Fields
   const [fullName, setFullName] = useState('');
@@ -89,49 +88,6 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
     }
   };
 
-  const handleDemoLogin = (type: 'verified_citizen' | 'new_member') => {
-    setIsLoading(true);
-    setTimeout(async () => {
-      let demoUser: UserAccount;
-      if (type === 'verified_citizen') {
-        demoUser = {
-          id: 'usr-michael-mumba',
-          name: 'Michael Mumba',
-          email: 'm.mumba8@gmail.com',
-          phone: '+260 97 711 8330',
-          authProvider: 'google',
-          role: 'registered_user',
-          isNrcVerified: true,
-          nrcVerification: {
-            nrcNumber: '294812/67/1',
-            fullName: 'Michael Mumba',
-            facialMatchScore: 98.4,
-            livenessVerified: true,
-            verifiedAt: '2026-03-12',
-            status: 'verified',
-          },
-          createdAt: '2026-01-15',
-        };
-      } else {
-        demoUser = {
-          id: `usr-demo-${Date.now()}`,
-          name: 'Chileshe Mwape',
-          email: 'chileshe.mwape@bwana.zm',
-          phone: '+260 96 552 1489',
-          authProvider: 'email',
-          role: 'registered_user',
-          isNrcVerified: false,
-          createdAt: new Date().toISOString(),
-        };
-      }
-
-      await saveUserProfileToFirestore(demoUser);
-      setIsLoading(false);
-      onAuthSuccess(demoUser, false);
-      onClose();
-    }, 400);
-  };
-
   const handleSendPhoneOtp = (e: React.FormEvent) => {
     e.preventDefault();
     if (!phoneNumber.trim() || phoneNumber.length < 9) {
@@ -143,7 +99,7 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
     setTimeout(() => {
       setIsLoading(false);
       setPhoneOtpStep(true);
-      setOtpCode('582914'); // pre-fill demo OTP code for frictionless testing
+      setOtpCode(''); // Clean empty code for user input
     }, 600);
   };
 
@@ -265,36 +221,63 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
           </div>
         </div>
 
-        {/* Auth Method Navigation Tabs */}
-        <div className="flex border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 px-5 pt-2 text-xs">
+        {/* Google Authentication Option */}
+        <div className="px-5 sm:px-6 pt-4">
           <button
             type="button"
-            onClick={() => { setAuthMethod('quick'); setErrorMessage(null); }}
-            className={`pb-2.5 px-3 font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
-              authMethod === 'quick'
-                ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
-            }`}
+            onClick={handleGoogleSignIn}
+            disabled={isLoading}
+            className="w-full py-2.5 px-4 bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-750 text-stone-800 dark:text-stone-100 border border-stone-300 dark:border-stone-700 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-3 shadow-xs hover:shadow-sm transition-all cursor-pointer"
           >
-            <Zap className="w-3.5 h-3.5" />
-            <span>1-Tap & Demo</span>
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+              />
+            </svg>
+            <span>{isLoading ? 'Connecting...' : 'Continue with Google'}</span>
           </button>
+
+          <div className="relative py-3 text-center">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-stone-200 dark:border-stone-800" />
+            </div>
+            <span className="relative bg-white dark:bg-stone-900 px-3 text-[11px] font-semibold text-stone-500 uppercase tracking-wider">
+              Or sign in with
+            </span>
+          </div>
+        </div>
+
+        {/* Auth Method Navigation Tabs */}
+        <div className="flex border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 px-5 text-xs">
           <button
             type="button"
             onClick={() => { setAuthMethod('phone'); setErrorMessage(null); }}
-            className={`pb-2.5 px-3 font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`flex-1 pb-2.5 px-3 font-semibold border-b-2 transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
               authMethod === 'phone'
                 ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold'
                 : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span>Mobile SMS</span>
+            <span>Mobile SMS (+260)</span>
           </button>
           <button
             type="button"
             onClick={() => { setAuthMethod('email'); setErrorMessage(null); }}
-            className={`pb-2.5 px-3 font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`flex-1 pb-2.5 px-3 font-semibold border-b-2 transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
               authMethod === 'email'
                 ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold'
                 : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
@@ -312,96 +295,6 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
             <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/80 text-rose-800 dark:text-rose-200 rounded-xl text-xs flex items-start gap-2 animate-in fade-in">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {/* METHOD 1: 1-Tap & Demo Login */}
-          {authMethod === 'quick' && (
-            <div className="space-y-4">
-              <p className="text-xs text-stone-600 dark:text-stone-300">
-                Sign in quickly using your Google account, or use our 1-click test profiles to explore all features right away.
-              </p>
-
-              {/* Google Button */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={isLoading}
-                className="w-full py-3 px-4 bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-750 text-stone-800 dark:text-stone-100 border border-stone-300 dark:border-stone-700 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-3 shadow-xs hover:shadow-sm transition-all cursor-pointer"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>{isLoading ? 'Connecting...' : 'Continue with Google'}</span>
-              </button>
-
-              {/* Demo Profiles Divider */}
-              <div className="relative py-2 text-center">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-stone-200 dark:border-stone-800" />
-                </div>
-                <span className="relative bg-white dark:bg-stone-900 px-3 text-[11px] font-semibold text-stone-500 uppercase tracking-wider">
-                  Or Test in 1-Click
-                </span>
-              </div>
-
-              {/* Quick Demo Buttons */}
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => handleDemoLogin('verified_citizen')}
-                  disabled={isLoading}
-                  className="w-full p-3 bg-emerald-50/80 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-300/80 dark:border-emerald-700/60 rounded-xl text-left transition-all cursor-pointer group flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <div>
-                      <span className="font-bold text-xs text-stone-900 dark:text-white block">
-                        Michael Mumba (Verified Resident)
-                      </span>
-                      <span className="text-[11px] text-stone-500 dark:text-stone-400">
-                        NRC Verified · Full star ratings & delivery privileges
-                      </span>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-emerald-600 group-hover:translate-x-1 transition-transform" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleDemoLogin('new_member')}
-                  disabled={isLoading}
-                  className="w-full p-3 bg-stone-100/80 dark:bg-stone-800/60 hover:bg-stone-200 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-left transition-all cursor-pointer group flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <User className="w-4 h-4 text-stone-600 dark:text-stone-300 shrink-0" />
-                    <div>
-                      <span className="font-bold text-xs text-stone-900 dark:text-white block">
-                        Chileshe Mwape (New Member)
-                      </span>
-                      <span className="text-[11px] text-stone-500 dark:text-stone-400">
-                        Registered account · Ready to explore NRC verification
-                      </span>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-stone-500 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </div>
             </div>
           )}
 
@@ -459,7 +352,7 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-900 dark:text-emerald-200">
                     <span>SMS code sent to </span>
                     <strong className="font-mono">{phoneNumber}</strong>
-                    <span>. Demo code is pre-filled below:</span>
+                    <span>. Please enter your 6-digit verification code:</span>
                   </div>
 
                   <div>
@@ -471,7 +364,7 @@ export const UserAuthModal: React.FC<UserAuthModalProps> = ({
                       maxLength={6}
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
-                      placeholder="582914"
+                      placeholder="------"
                       className="w-full px-4 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-center text-lg font-mono tracking-widest text-stone-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       required
                     />

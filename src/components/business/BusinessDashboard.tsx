@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Store,
   Eye,
@@ -21,11 +21,23 @@ import {
   PackageCheck,
   XCircle,
   Truck,
-  LogOut
+  LogOut,
+  Send,
+  User,
+  CheckCheck,
+  TrendingUp,
+  BarChart3
 } from 'lucide-react';
-import { Business, BusinessProduct, BusinessService, BusinessPromotion, BusinessReview, PriceType } from '../../types';
+import { Business, BusinessProduct, BusinessService, BusinessPromotion, BusinessReview, PriceType, ChatConversation, ChatMessage } from '../../types';
 import { EngagementAnalyticsChart } from './EngagementAnalyticsChart';
+import { BusinessInsightsView } from './BusinessInsightsView';
 import { useCart, Order } from '../../context/CartContext';
+import {
+  subscribeToBusinessConversations,
+  subscribeToMessages,
+  sendMessageToBusiness,
+  markConversationAsRead
+} from '../../services/firebase';
 
 interface BusinessDashboardProps {
   business: Business;
@@ -44,11 +56,88 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   onRespondToReview,
   onSignOut,
 }) => {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'orders' | 'products' | 'services' | 'promotions' | 'verification' | 'reviews' | 'settings'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'orders' | 'products' | 'services' | 'promotions' | 'verification' | 'reviews' | 'settings'>('analytics');
   const { orders, updateOrderStatus } = useCart();
   const [replyingReviewId, setReplyingReviewId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [responderName, setResponderName] = useState(`${business.name} Management`);
+
+  // Direct Customer Chats state
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [selectedConvoId, setSelectedConvoId] = useState<string | null>(null);
+  const [convoMessages, setConvoMessages] = useState<ChatMessage[]>([]);
+  const [merchantReplyText, setMerchantReplyText] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const convoEndRef = useRef<HTMLDivElement>(null);
+
+  // Subscribe to business conversations
+  useEffect(() => {
+    const unsub = subscribeToBusinessConversations(business.id, (convos) => {
+      setConversations(convos);
+      setSelectedConvoId((prev) => {
+        if (prev && convos.some((c) => c.id === prev)) return prev;
+        return convos.length > 0 ? convos[0].id : null;
+      });
+    });
+    return () => unsub();
+  }, [business.id]);
+
+  // Subscribe to messages in active conversation
+  useEffect(() => {
+    if (!selectedConvoId) {
+      setConvoMessages([]);
+      return;
+    }
+    const unsub = subscribeToMessages(selectedConvoId, (msgs) => {
+      setConvoMessages(msgs);
+    });
+    markConversationAsRead(selectedConvoId, 'business').catch(() => {});
+    return () => unsub();
+  }, [selectedConvoId]);
+
+  useEffect(() => {
+    if (activeTab === 'messages') {
+      convoEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [convoMessages, activeTab]);
+
+  const activeConversation = conversations.find((c) => c.id === selectedConvoId);
+  const totalUnreadMessages = conversations.reduce((acc, c) => acc + (c.unreadCountForBusiness || 0), 0);
+
+  const handleSendMerchantReply = async () => {
+    if (!merchantReplyText.trim() || isSendingReply || !activeConversation) return;
+
+    setIsSendingReply(true);
+    const text = merchantReplyText.trim();
+    setMerchantReplyText('');
+
+    try {
+      await sendMessageToBusiness(
+        {
+          businessId: business.id,
+          businessName: business.name,
+          businessLogo: business.logoUrl || business.photos?.[0] || '',
+          businessPhone: business.phone,
+          businessCity: business.city,
+          businessArea: business.area,
+          businessIsOpenNow: business.isOpenNow,
+          userId: activeConversation.userId,
+          userName: activeConversation.userName,
+          userPhone: activeConversation.userPhone || ''
+        },
+        {
+          senderId: business.id,
+          senderName: `${business.name} (Support)`,
+          senderRole: 'business',
+          text
+        }
+      );
+    } catch (err) {
+      console.error('Failed to send merchant reply:', err);
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
 
   // Filter reviews for this business
   const businessReviews = useMemo(() => {
@@ -332,14 +421,39 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
       <div className="flex items-center gap-2 border-b border-stone-200 dark:border-stone-800 pb-3 mb-6 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'analytics'
               ? 'bg-emerald-600 text-white shadow-xs font-bold'
               : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700'
           }`}
         >
-          Performance & Leads
+          <TrendingUp className="w-3.5 h-3.5" />
+          <span>Business Insights</span>
+          <span className="text-[10px] font-mono bg-emerald-950/40 text-emerald-300 dark:text-emerald-200 px-1.5 py-0.2 rounded">
+            D3+Recharts
+          </span>
         </button>
+        <button
+          onClick={() => setActiveTab('messages')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'messages'
+              ? 'bg-emerald-600 text-white shadow-xs font-bold'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700'
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>Customer Chats</span>
+          {totalUnreadMessages > 0 ? (
+            <span className="bg-emerald-500 text-white font-bold text-[10px] px-1.5 py-0.2 rounded-full font-mono animate-pulse">
+              {totalUnreadMessages}
+            </span>
+          ) : (
+            <span className="bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+              {conversations.length}
+            </span>
+          )}
+        </button>
+
         <button
           onClick={() => setActiveTab('orders')}
           className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
@@ -420,6 +534,191 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
           </span>
         </button>
       </div>
+
+      {/* TAB CONTENT: Direct Customer Chats (No WhatsApp required) */}
+      {activeTab === 'messages' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold font-display text-stone-900 dark:text-white">
+                  Direct In-App Customer Chats
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                  Live Firestore Sync
+                </span>
+              </div>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                Respond to customer product inquiries, consultation appointments, and quotes directly on Bwana without external WhatsApp.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden shadow-2xs min-h-[560px]">
+            {/* Left 4 Cols: Conversations List */}
+            <div className="lg:col-span-4 border-r border-stone-200 dark:border-stone-800 flex flex-col bg-stone-50/50 dark:bg-stone-950/40">
+              <div className="p-3.5 border-b border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 flex items-center justify-between">
+                <span className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                  Inquiries ({conversations.length})
+                </span>
+                {totalUnreadMessages > 0 && (
+                  <span className="text-[10px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                    {totalUnreadMessages} unread
+                  </span>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto divide-y divide-stone-100 dark:divide-stone-800/80">
+                {conversations.length === 0 ? (
+                  <div className="p-8 text-center text-stone-400 flex flex-col items-center justify-center h-full">
+                    <MessageSquare className="w-8 h-8 text-stone-300 dark:text-stone-700 mb-2" />
+                    <p className="text-xs font-semibold text-stone-600 dark:text-stone-400">No customer chats yet</p>
+                    <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1 max-w-[200px]">
+                      Customer inquiries from search and your business profile appear here in real time.
+                    </p>
+                  </div>
+                ) : (
+                  conversations.map((convo) => {
+                    const isSelected = convo.id === selectedConvoId;
+                    return (
+                      <button
+                        key={convo.id}
+                        onClick={() => setSelectedConvoId(convo.id)}
+                        className={`w-full p-3.5 text-left flex items-start gap-3 transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-l-4 border-emerald-600'
+                            : 'hover:bg-stone-100/60 dark:hover:bg-stone-800/50'
+                        }`}
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300 flex items-center justify-center shrink-0 font-bold text-xs">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-xs text-stone-900 dark:text-white truncate">
+                              {convo.userName || 'Bwana Customer'}
+                            </span>
+                            {convo.unreadCountForBusiness > 0 && (
+                              <span className="px-1.5 py-0.2 bg-emerald-600 text-white text-[10px] font-bold rounded-full">
+                                {convo.unreadCountForBusiness}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
+                            {convo.lastMessage || 'New inquiry'}
+                          </p>
+                          <span className="text-[10px] text-stone-400 font-mono mt-1 block">
+                            {convo.lastMessageTimestamp
+                              ? new Date(convo.lastMessageTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                              : ''}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Right 8 Cols: Active Chat Thread */}
+            <div className="lg:col-span-8 flex flex-col h-full bg-white dark:bg-stone-900">
+              {activeConversation ? (
+                <>
+                  {/* Thread Header */}
+                  <div className="p-3.5 border-b border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-xs sm:text-sm text-stone-900 dark:text-white flex items-center gap-1.5">
+                        <span>{activeConversation.userName || 'Bwana Customer'}</span>
+                        <span className="text-[10px] text-stone-500 font-normal">
+                          (Direct Bwana In-App Chat)
+                        </span>
+                      </h4>
+                      {activeConversation.userPhone && (
+                        <p className="text-[11px] text-stone-500 mt-0.5">
+                          Phone: <strong>{activeConversation.userPhone}</strong>
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                      Merchant Response Channel
+                    </span>
+                  </div>
+
+                  {/* Message Stream */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[340px] max-h-[460px] bg-stone-50/30 dark:bg-stone-900/40">
+                    {convoMessages.map((msg) => {
+                      const isMerchant = msg.senderRole === 'business';
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex flex-col ${isMerchant ? 'items-end' : 'items-start'}`}
+                        >
+                          <span className="text-[10px] text-stone-400 mb-0.5">
+                            {isMerchant ? `${business.name} (Official Reply)` : activeConversation.userName || 'Customer'}
+                          </span>
+                          <div
+                            className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${
+                              isMerchant
+                                ? 'bg-emerald-600 text-white rounded-br-xs'
+                                : 'bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 border border-stone-200 dark:border-stone-700 rounded-bl-xs'
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px] text-stone-400 mt-1">
+                            <span>
+                              {msg.timestamp
+                                ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                : ''}
+                            </span>
+                            {isMerchant && <CheckCheck className="w-3 h-3 text-emerald-600" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={convoEndRef} />
+                  </div>
+
+                  {/* Reply Composer */}
+                  <div className="p-3 sm:p-4 border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-950 flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder={`Reply directly to ${activeConversation.userName || 'Customer'}...`}
+                      value={merchantReplyText}
+                      onChange={(e) => setMerchantReplyText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSendMerchantReply();
+                        }
+                      }}
+                      className="flex-1 bg-stone-100 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-stone-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      onClick={handleSendMerchantReply}
+                      disabled={!merchantReplyText.trim() || isSendingReply}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-300 dark:disabled:bg-stone-800 text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:cursor-not-allowed shadow-xs"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Send Reply</span>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-stone-400">
+                  <MessageSquare className="w-10 h-10 text-stone-300 dark:text-stone-700 mb-2" />
+                  <p className="text-sm font-semibold text-stone-600 dark:text-stone-400">
+                    Select a conversation to reply
+                  </p>
+                  <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
+                    Direct on-platform inquiries will display here.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TAB CONTENT: Seller Orders & Invoices (Phase 1 Super App) */}
       {activeTab === 'orders' && (
@@ -1012,63 +1311,9 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB CONTENT: Performance / Inquiries */}
+      {/* TAB CONTENT: Business Insights (Recharts + D3) */}
       {activeTab === 'analytics' && (
-        <div className="space-y-6">
-          {/* Main 30-Day Recharts Lead Conversion & CTR Engine */}
-          <EngagementAnalyticsChart />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 bg-white border border-stone-200 rounded-xl space-y-4">
-              <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
-                Discovery Channel Breakdown
-              </h3>
-              <div className="space-y-3 text-xs">
-                <div>
-                  <div className="flex justify-between text-stone-600 mb-1">
-                    <span>Nearby Search ("Hardware near me")</span>
-                    <span className="font-mono font-semibold">58%</span>
-                  </div>
-                  <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
-                    <div className="bg-emerald-600 h-full w-[58%]" />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-stone-600 mb-1">
-                    <span>Category Browsing ("Home & Construction")</span>
-                    <span className="font-mono font-semibold">27%</span>
-                  </div>
-                  <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
-                    <div className="bg-emerald-500 h-full w-[27%]" />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-stone-600 mb-1">
-                    <span>Promotions & Weekend Deals</span>
-                    <span className="font-mono font-semibold">15%</span>
-                  </div>
-                  <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
-                    <div className="bg-amber-500 h-full w-[15%]" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 bg-white border border-stone-200 rounded-xl space-y-3">
-              <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
-                Direct Lead Conversion
-              </h3>
-              <p className="text-xs text-stone-600 leading-relaxed">
-                In the last 30 days, customers triggered <strong>286 direct phone calls</strong> and <strong>193 WhatsApp chats</strong> directly from your Bwana verified card.
-              </p>
-              <div className="p-3 bg-emerald-50 rounded-lg text-emerald-900 text-xs border border-emerald-200">
-                <strong>Pro Tip:</strong> Businesses that list prices in Zambian Kwacha (ZMW) for at least 5 products receive 4.2x more WhatsApp quotes.
-              </div>
-            </div>
-          </div>
-        </div>
+        <BusinessInsightsView business={business} reviews={businessReviews} />
       )}
       {/* TAB CONTENT: Customer Reviews Management */}
       {activeTab === 'reviews' && (

@@ -277,6 +277,7 @@ export interface BusinessOpeningHours {
   open: string;
   close: string;
   isClosed?: boolean;
+  isOpen?: boolean;
 }
 
 export interface BusinessSocialLinks {
@@ -312,6 +313,8 @@ export interface Business {
   distanceKm?: number;
   coverImage: string;
   galleryImages: string[];
+  logoUrl?: string;
+  photos?: string[];
   isOpenNow: boolean;
   hours: BusinessOpeningHours[];
   claimedByUserId?: string;
@@ -329,6 +332,8 @@ export interface Business {
   tags?: string[];
   attributes?: string[];
   socialLinks?: BusinessSocialLinks;
+  googleMapsRegistered?: boolean;
+  placeType?: 'mall' | 'hospital' | 'clinic' | 'commercial' | 'general';
 }
 
 export interface Professional {
@@ -352,6 +357,13 @@ export interface Professional {
   phone: string;
   whatsapp: string;
   portfolio: { title: string; client: string; year: string; description: string }[];
+  field?: string; // Primary field/industry: 'Software & IT', 'Electrical Engineering', 'Building & Construction', 'Accounting & Finance', 'Health & Nursing', 'Plumbing & Mechanics', etc.
+  qualificationDocName?: string;
+  qualificationDocType?: string; // 'TEVETA Craft Certificate', 'EIZ Practicing License', 'ZICA Chartered Accountant', 'Degree / Diploma', 'National Registration Card (NRC)'
+  qualificationDocVerified?: boolean;
+  yearsExperience?: number;
+  registrationNumber?: string;
+  createdAt?: string;
 }
 
 export interface EventItem {
@@ -385,6 +397,14 @@ export interface OpportunityItem {
   remunerationOrBudget?: string;
   applyUrlOrContact: string;
   isVerifiedOrg: boolean;
+  isZppaTender?: boolean;
+  tenderNumber?: string; // e.g. 'ZPPA/MOH/ONB/024/2026'
+  procuringEntity?: string;
+  zppaPortalUrl?: string; // e.g. 'https://eprocure.zppa.org.zm'
+  procurementCategory?: string; // 'Goods' | 'Works' | 'Consulting Services' | 'Non-Consulting Services'
+  procurementMethod?: string; // 'Open National Bidding (ONB)' | 'Open International Bidding (OIB)' | 'Simplified Bidding'
+  closingTime?: string;
+  createdAt?: string;
 }
 
 export interface VerificationRequest {
@@ -434,7 +454,41 @@ export interface SearchQueryParams {
   maxDistanceKm?: number;
   verifiedOnly?: boolean;
   openNowOnly?: boolean;
-  sortBy?: 'distance' | 'rating' | 'popular';
+  highestRatedOnly?: boolean;
+  offersDeliveryOnly?: boolean;
+  serviceCategory?: string;
+  sortBy?: 'distance' | 'rating' | 'popular' | 'reviews';
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'user' | 'business';
+  text: string;
+  timestamp: string;
+  read: boolean;
+}
+
+export interface ChatConversation {
+  id: string;
+  businessId: string;
+  businessName: string;
+  businessLogo?: string;
+  businessPhone?: string;
+  businessCity?: string;
+  businessArea?: string;
+  businessIsOpenNow?: boolean;
+  userId: string;
+  userName: string;
+  userPhone?: string;
+  lastMessage: string;
+  lastMessageTimestamp: string;
+  unreadCountForUser: number;
+  unreadCountForBusiness: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CourierDriver {

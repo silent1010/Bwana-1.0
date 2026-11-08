@@ -26,12 +26,14 @@ import {
   Users,
   Package,
   MessageCircle,
+  MessageSquare,
   User
 } from 'lucide-react';
 import { UserRole, LocationArea } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { useCart } from '../../context/CartContext';
 import { getOfflineCacheMetadata, formatCachedTimestamp } from '../../services/offlineCache';
+import { BwanaLogo } from '../common/BwanaLogo';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
@@ -47,6 +49,7 @@ interface SidebarDrawerProps {
   onOpenAdminGate?: () => void;
   onOpenNotifications: () => void;
   onOpenCart?: () => void;
+  onOpenMessages?: () => void;
   onOpenScouts?: () => void;
   onOpenLogistics?: () => void;
   onOpenWholesale?: () => void;
@@ -73,6 +76,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   onOpenAdminGate,
   onOpenNotifications,
   onOpenCart,
+  onOpenMessages,
   onOpenScouts,
   onOpenLogistics,
   onOpenWholesale,
@@ -108,19 +112,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
       <div className="relative w-80 max-w-[85vw] bg-white dark:bg-stone-900 h-full shadow-2xl flex flex-col z-10 border-r border-stone-200 dark:border-stone-800 animate-in slide-in-from-left duration-250">
         {/* Header */}
         <div className="p-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between bg-stone-50 dark:bg-stone-950">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold font-display text-sm">
-              B
-            </div>
-            <div>
-              <div className="font-bold font-display text-stone-900 dark:text-white text-base leading-none">
-                Bwana Menu
-              </div>
-              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
-                Navigation & Portals
-              </span>
-            </div>
-          </div>
+          <BwanaLogo size="sm" variant="compact" />
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer"
@@ -407,18 +399,31 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               <Store className="w-4 h-4 shrink-0" />
               <span>Merchant Dashboard</span>
             </button>
-          ) : onOpenBusinessLogin ? (
-            <button
-              onClick={() => {
-                onOpenBusinessLogin();
-                onClose();
-              }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
-            >
-              <Store className="w-4 h-4 shrink-0" />
-              <span>Merchant Portal Login</span>
-            </button>
-          ) : null}
+          ) : (
+            <div className="space-y-1">
+              <button
+                onClick={() => {
+                  navigateTo('register_business');
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-100 transition-colors cursor-pointer"
+              >
+                <Store className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>Register New Business</span>
+              </button>
+              {onOpenBusinessLogin && (
+                <button
+                  onClick={() => {
+                    onOpenBusinessLogin();
+                    onClose();
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer"
+                >
+                  <Store className="w-3.5 h-3.5 shrink-0" />
+                  <span>Merchant Portal Sign In</span>
+                </button>
+              )}
+            </div>
+          )}
 
           {currentRole === 'admin' ? (
             <button
@@ -472,6 +477,19 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-stone-500" />}
               <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
+
+            {onOpenMessages && (
+              <button
+                onClick={() => {
+                  onOpenMessages();
+                  onClose();
+                }}
+                className="p-2 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-stone-100 transition-colors relative cursor-pointer"
+                title="Direct Business Messages (In-App Chat)"
+              >
+                <MessageSquare className="w-4 h-4 text-stone-500" />
+              </button>
+            )}
 
             <button
               onClick={() => {

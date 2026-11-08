@@ -20,10 +20,13 @@ import {
   Briefcase,
   Calendar,
   Sparkles,
+  MessageSquare,
+  Plus,
 } from 'lucide-react';
 import { UserRole, LocationArea, SystemUser } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { useCart } from '../../context/CartContext';
+import { BwanaLogo } from '../common/BwanaLogo';
 
 interface NavbarProps {
   currentTab: string;
@@ -37,9 +40,12 @@ interface NavbarProps {
   onOpenAuth?: () => void;
   onOpenApiConsole?: () => void;
   onOpenBusinessLogin?: () => void;
+  onOpenRegisterBusiness?: () => void;
   onOpenAdminGate?: () => void;
   onOpenNotifications: () => void;
   onOpenCart?: () => void;
+  onOpenMessages?: () => void;
+  unreadMessagesCount?: number;
   unreadCount: number;
   isAuthenticated?: boolean;
   isNrcVerified?: boolean;
@@ -63,9 +69,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuth,
   onOpenApiConsole,
   onOpenBusinessLogin,
+  onOpenRegisterBusiness,
   onOpenAdminGate,
   onOpenNotifications,
   onOpenCart,
+  onOpenMessages,
+  unreadMessagesCount = 0,
   unreadCount,
   isAuthenticated,
   isNrcVerified,
@@ -169,21 +178,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             onClick={() => setCurrentTab('discover')}
-            className="flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer text-left"
+            className="flex items-center gap-2 hover:opacity-95 transition-opacity cursor-pointer text-left"
             title="Bwana Marketplace Home"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-white flex items-center justify-center font-black font-display text-lg shadow-sm">
-              B
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xl font-extrabold tracking-tight text-stone-950 dark:text-white font-display leading-tight flex items-center gap-1">
-                <span>Bwana</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              </span>
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-emerald-700 dark:text-emerald-400 hidden xs:inline">
-                Zambia Directory
-              </span>
-            </div>
+            <BwanaLogo size="md" variant="full" />
           </button>
         </div>
 
@@ -337,6 +335,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
+          {/* Direct In-App Chat Messages Trigger */}
+          {onOpenMessages && (
+            <button
+              type="button"
+              onClick={onOpenMessages}
+              className="relative p-2 sm:p-2.5 rounded-xl text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-800 transition-colors cursor-pointer"
+              title="Direct Business Messages (In-App Chat · No WhatsApp)"
+              aria-label="Direct Business Messages"
+            >
+              <MessageSquare className="w-4.5 h-4.5 text-stone-800 dark:text-stone-200" />
+              {unreadMessagesCount > 0 && (
+                <span className="absolute -top-1 -right-1 px-1.5 py-0.2 min-w-4 text-[10px] font-mono font-bold bg-emerald-600 text-white rounded-full text-center shadow-xs">
+                  {unreadMessagesCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Notifications Trigger */}
           <button
             type="button"
@@ -452,7 +468,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span>Sign In</span>
               </button>
 
-              {/* Business Portal Login (Desktop) */}
+              {/* Business Portal Actions (Desktop) */}
+              <button
+                type="button"
+                onClick={onOpenRegisterBusiness || (() => setCurrentTab('register_business'))}
+                className="hidden lg:flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-2xs"
+                title="Register your shop or service across Zambia"
+              >
+                <Plus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Register Business</span>
+              </button>
+
               <button
                 type="button"
                 onClick={onOpenBusinessLogin}
@@ -460,7 +486,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Merchant & Business Portal Login"
               >
                 <Store className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>Business</span>
+                <span>Biz Login</span>
               </button>
             </div>
           )}

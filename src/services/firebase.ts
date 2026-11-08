@@ -9,9 +9,18 @@ import {
   getDocs,
   getDoc,
   getDocFromServer,
-  writeBatch
+  writeBatch,
+  query,
+  orderBy
 } from 'firebase/firestore';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut
+} from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import {
   Business,
@@ -29,29 +38,22 @@ import {
   BwanaWalletTransaction,
   ScoutOnboardingRecord,
   LocationCoordinates,
-  UserAccount
+  UserAccount,
+  ChatMessage,
+  ChatConversation
 } from '../types';
-import {
-  INITIAL_BUSINESSES,
-  INITIAL_REVIEWS,
-  INITIAL_VERIFICATIONS,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_NOTIFICATIONS,
-  INITIAL_PROFESSIONALS,
-  INITIAL_EVENTS,
-  INITIAL_OPPORTUNITIES,
-  CATEGORIES,
-  INITIAL_COURIERS,
-  INITIAL_RIDES,
-  INITIAL_SCOUTS,
-  INITIAL_WALLET_TRANSACTIONS
-} from '../data/mockData';
+import { DATABASE_CATEGORIES, seedDatabaseData } from './dbSeeder';
 import {
   saveBusinessesToOfflineCache,
   getCachedBusinessesFromOffline,
   saveCategoriesToOfflineCache,
   getCachedCategoriesFromOffline
 } from './offlineCache';
+import {
+  insertBusinessIntoSupabase,
+  insertReviewIntoSupabase,
+  insertNotificationIntoSupabase
+} from './supabase';
 
 // 1. Initialize Firebase App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -165,35 +167,23 @@ export function subscribeToBusinesses(callback: (businesses: Business[]) => void
   // 2. Attach live Firestore listener to update cache and push real-time updates
   const unsubscribe = onSnapshot(
     businessesRef,
-    async (snapshot) => {
+    (snapshot) => {
       if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_BUSINESSES.forEach((biz) => {
-            const docRef = doc(db, 'businesses', biz.id);
-            batch.set(docRef, biz);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'businesses');
-        }
-        saveBusinessesToOfflineCache(INITIAL_BUSINESSES);
-        callback(INITIAL_BUSINESSES);
-      } else {
-        const list: Business[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as Business);
-        });
-        // Update local offline cache with newest live dataset
-        saveBusinessesToOfflineCache(list);
-        callback(list);
+        seedDatabaseData().catch(() => {});
       }
+      const list: Business[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as Business);
+      });
+      // Update local offline cache with newest live dataset
+      saveBusinessesToOfflineCache(list);
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
       // Fallback to local offline cache if network fails
       const fallback = getCachedBusinessesFromOffline();
-      callback(fallback.businesses.length > 0 ? fallback.businesses : INITIAL_BUSINESSES);
+      callback(fallback.businesses || []);
     }
   );
 
@@ -207,7 +197,6 @@ export function subscribeToCategories(callback: (categories: Category[]) => void
   const path = 'categories';
   const categoriesRef = collection(db, path);
 
-  // Immediately serve from offline cache if available
   const cachedCats = getCachedCategoriesFromOffline();
   if (cachedCats && cachedCats.length > 0) {
     callback(cachedCats);
@@ -215,20 +204,10 @@ export function subscribeToCategories(callback: (categories: Category[]) => void
 
   const unsubscribe = onSnapshot(
     categoriesRef,
-    async (snapshot) => {
+    (snapshot) => {
       if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          CATEGORIES.forEach((cat) => {
-            const docRef = doc(db, 'categories', cat.id);
-            batch.set(docRef, cat);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'categories');
-        }
-        saveCategoriesToOfflineCache(CATEGORIES);
-        callback(CATEGORIES);
+        seedDatabaseData().catch(() => {});
+        callback(DATABASE_CATEGORIES);
       } else {
         const list: Category[] = [];
         snapshot.forEach((docSnap) => {
@@ -240,8 +219,7 @@ export function subscribeToCategories(callback: (categories: Category[]) => void
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      const fallback = getCachedCategoriesFromOffline();
-      callback(fallback && fallback.length > 0 ? fallback : CATEGORIES);
+      callback(DATABASE_CATEGORIES);
     }
   );
 
@@ -257,30 +235,16 @@ export function subscribeToProfessionals(callback: (professionals: Professional[
 
   const unsubscribe = onSnapshot(
     profRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_PROFESSIONALS.forEach((prof) => {
-            const docRef = doc(db, 'professionals', prof.id);
-            batch.set(docRef, prof);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'professionals');
-        }
-        callback(INITIAL_PROFESSIONALS);
-      } else {
-        const list: Professional[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as Professional);
-        });
-        callback(list);
-      }
+    (snapshot) => {
+      const list: Professional[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as Professional);
+      });
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_PROFESSIONALS);
+      callback([]);
     }
   );
 
@@ -296,30 +260,16 @@ export function subscribeToEvents(callback: (events: EventItem[]) => void): () =
 
   const unsubscribe = onSnapshot(
     eventsRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_EVENTS.forEach((ev) => {
-            const docRef = doc(db, 'events', ev.id);
-            batch.set(docRef, ev);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'events');
-        }
-        callback(INITIAL_EVENTS);
-      } else {
-        const list: EventItem[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as EventItem);
-        });
-        callback(list);
-      }
+    (snapshot) => {
+      const list: EventItem[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as EventItem);
+      });
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_EVENTS);
+      callback([]);
     }
   );
 
@@ -335,30 +285,16 @@ export function subscribeToOpportunities(callback: (opportunities: OpportunityIt
 
   const unsubscribe = onSnapshot(
     oppRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_OPPORTUNITIES.forEach((opp) => {
-            const docRef = doc(db, 'opportunities', opp.id);
-            batch.set(docRef, opp);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'opportunities');
-        }
-        callback(INITIAL_OPPORTUNITIES);
-      } else {
-        const list: OpportunityItem[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as OpportunityItem);
-        });
-        callback(list);
-      }
+    (snapshot) => {
+      const list: OpportunityItem[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as OpportunityItem);
+      });
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_OPPORTUNITIES);
+      callback([]);
     }
   );
 
@@ -374,81 +310,18 @@ export function subscribeToOrders(callback: (orders: Order[]) => void): () => vo
 
   const unsubscribe = onSnapshot(
     ordersRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        const initialOrder: Order = {
-          id: 'ord-1001',
-          businessId: 'biz-abc-hardware',
-          businessName: 'ABC Hardware & Construction',
-          items: [
-            {
-              product: {
-                id: 'prod-1',
-                businessId: 'biz-abc-hardware',
-                name: 'Portland Composite Cement (Dangote 42.5N, 50kg)',
-                price: 185,
-                priceType: 'fixed',
-                currency: 'ZMW',
-                inStock: true,
-                category: 'Building Materials',
-              },
-              businessId: 'biz-abc-hardware',
-              businessName: 'ABC Hardware & Construction',
-              quantity: 4,
-            },
-            {
-              product: {
-                id: 'prod-4',
-                businessId: 'biz-abc-hardware',
-                name: 'Industrial Heavy-Duty Angle Grinder 2300W',
-                price: 1450,
-                priceType: 'fixed',
-                currency: 'ZMW',
-                inStock: true,
-                category: 'Power Tools',
-              },
-              businessId: 'biz-abc-hardware',
-              businessName: 'ABC Hardware & Construction',
-              quantity: 1,
-            },
-          ],
-          subtotal: 2190,
-          deliveryFee: 45,
-          platformSplitFee: 21.90,
-          merchantPayout: 2168.10,
-          total: 2235,
-          customerName: 'Mwamba Chisanga',
-          customerPhone: '+260 97 711 8330',
-          deliveryAddress: 'Plot 418, Riverside Ext, Kitwe',
-          notes: 'Please call when offloading rebar and cement.',
-          paymentMethod: 'mtn_momo',
-          paymentStatus: 'paid',
-          orderStatus: 'preparing',
-          trackingNumber: 'BWN-KTW-8842',
-          courierName: 'Kondwani Banda (Bwana Rider)',
-          courierPhone: '+260 96 220 9140',
-          createdAt: new Date().toISOString(),
-        };
-
-        try {
-          const docRef = doc(db, 'orders', initialOrder.id);
-          await setDoc(docRef, initialOrder);
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'orders');
-        }
-        callback([initialOrder]);
-      } else {
-        const list: Order[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as Order);
-        });
-        // Sort newest first
-        list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        callback(list);
-      }
+    (snapshot) => {
+      const list: Order[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as Order);
+      });
+      // Sort newest first
+      list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
+      callback([]);
     }
   );
 
@@ -464,30 +337,16 @@ export function subscribeToReviews(callback: (reviews: BusinessReview[]) => void
 
   const unsubscribe = onSnapshot(
     reviewsRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_REVIEWS.forEach((rev) => {
-            const docRef = doc(db, 'reviews', rev.id);
-            batch.set(docRef, rev);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'reviews');
-        }
-        callback(INITIAL_REVIEWS);
-      } else {
-        const list: BusinessReview[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as BusinessReview);
-        });
-        callback(list);
-      }
+    (snapshot) => {
+      const list: BusinessReview[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as BusinessReview);
+      });
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_REVIEWS);
+      callback([]);
     }
   );
 
@@ -505,30 +364,16 @@ export function subscribeToVerifications(
 
   const unsubscribe = onSnapshot(
     verificationsRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_VERIFICATIONS.forEach((v) => {
-            const docRef = doc(db, 'verifications', v.id);
-            batch.set(docRef, v);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'verifications');
-        }
-        callback(INITIAL_VERIFICATIONS);
-      } else {
-        const list: VerificationRequest[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as VerificationRequest);
-        });
-        callback(list);
-      }
+    (snapshot) => {
+      const list: VerificationRequest[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as VerificationRequest);
+      });
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_VERIFICATIONS);
+      callback([]);
     }
   );
 
@@ -544,31 +389,17 @@ export function subscribeToAuditLogs(callback: (logs: AuditLogEntry[]) => void):
 
   const unsubscribe = onSnapshot(
     logsRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_AUDIT_LOGS.forEach((log) => {
-            const docRef = doc(db, 'auditLogs', log.id);
-            batch.set(docRef, log);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'auditLogs');
-        }
-        callback(INITIAL_AUDIT_LOGS);
-      } else {
-        const list: AuditLogEntry[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as AuditLogEntry);
-        });
-        list.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
-        callback(list);
-      }
+    (snapshot) => {
+      const list: AuditLogEntry[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as AuditLogEntry);
+      });
+      list.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_AUDIT_LOGS);
+      callback([]);
     }
   );
 
@@ -586,30 +417,16 @@ export function subscribeToNotifications(
 
   const unsubscribe = onSnapshot(
     notifsRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_NOTIFICATIONS.forEach((n) => {
-            const docRef = doc(db, 'notifications', n.id);
-            batch.set(docRef, n);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'notifications');
-        }
-        callback(INITIAL_NOTIFICATIONS);
-      } else {
-        const list: BwanaNotification[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as BwanaNotification);
-        });
-        callback(list);
-      }
+    (snapshot) => {
+      const list: BwanaNotification[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as BwanaNotification);
+      });
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_NOTIFICATIONS);
+      callback([]);
     }
   );
 
@@ -625,30 +442,16 @@ export function subscribeToCouriers(callback: (couriers: CourierDriver[]) => voi
 
   const unsubscribe = onSnapshot(
     couriersRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_COURIERS.forEach((c) => {
-            const docRef = doc(db, 'couriers', c.id);
-            batch.set(docRef, c);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'couriers');
-        }
-        callback(INITIAL_COURIERS);
-      } else {
-        const list: CourierDriver[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as CourierDriver);
-        });
-        callback(list);
-      }
+    (snapshot) => {
+      const list: CourierDriver[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as CourierDriver);
+      });
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_COURIERS);
+      callback([]);
     }
   );
 
@@ -664,31 +467,17 @@ export function subscribeToRides(callback: (rides: RideRequest[]) => void): () =
 
   const unsubscribe = onSnapshot(
     ridesRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_RIDES.forEach((r) => {
-            const docRef = doc(db, 'rides', r.id);
-            batch.set(docRef, r);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'rides');
-        }
-        callback(INITIAL_RIDES);
-      } else {
-        const list: RideRequest[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as RideRequest);
-        });
-        list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        callback(list);
-      }
+    (snapshot) => {
+      const list: RideRequest[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as RideRequest);
+      });
+      list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_RIDES);
+      callback([]);
     }
   );
 
@@ -704,31 +493,17 @@ export function subscribeToScouts(callback: (scouts: ScoutOnboardingRecord[]) =>
 
   const unsubscribe = onSnapshot(
     scoutsRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_SCOUTS.forEach((s) => {
-            const docRef = doc(db, 'scouts', s.id);
-            batch.set(docRef, s);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'scouts');
-        }
-        callback(INITIAL_SCOUTS);
-      } else {
-        const list: ScoutOnboardingRecord[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as ScoutOnboardingRecord);
-        });
-        list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        callback(list);
-      }
+    (snapshot) => {
+      const list: ScoutOnboardingRecord[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as ScoutOnboardingRecord);
+      });
+      list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_SCOUTS);
+      callback([]);
     }
   );
 
@@ -744,31 +519,17 @@ export function subscribeToWalletTransactions(callback: (txs: BwanaWalletTransac
 
   const unsubscribe = onSnapshot(
     txRef,
-    async (snapshot) => {
-      if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          INITIAL_WALLET_TRANSACTIONS.forEach((tx) => {
-            const docRef = doc(db, 'walletTransactions', tx.id);
-            batch.set(docRef, tx);
-          });
-          await batch.commit();
-        } catch (e) {
-          handleFirestoreError(e, OperationType.WRITE, 'walletTransactions');
-        }
-        callback(INITIAL_WALLET_TRANSACTIONS);
-      } else {
-        const list: BwanaWalletTransaction[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as BwanaWalletTransaction);
-        });
-        list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        callback(list);
-      }
+    (snapshot) => {
+      const list: BwanaWalletTransaction[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as BwanaWalletTransaction);
+      });
+      list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      callback(list);
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, path);
-      callback(INITIAL_WALLET_TRANSACTIONS);
+      callback([]);
     }
   );
 
@@ -784,6 +545,7 @@ export async function createBusinessInFirestore(business: Business): Promise<voi
   try {
     const docRef = doc(db, 'businesses', business.id);
     await setDoc(docRef, business);
+    insertBusinessIntoSupabase(business).catch(() => {});
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -830,6 +592,7 @@ export async function createReviewInFirestore(review: BusinessReview): Promise<v
   try {
     const docRef = doc(db, 'reviews', review.id);
     await setDoc(docRef, review);
+    insertReviewIntoSupabase(review).catch(() => {});
 
     try {
       const reviewsSnap = await getDocs(collection(db, 'reviews'));
@@ -919,6 +682,7 @@ export async function createNotificationInFirestore(
   try {
     const docRef = doc(db, 'notifications', notif.id);
     await setDoc(docRef, notif);
+    insertNotificationIntoSupabase(notif).catch(() => {});
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -999,6 +763,56 @@ export async function updateCourierLocationInFirestore(
 }
 
 // ============================================================================
+// PROFESSIONALS & OPPORTUNITIES (Live Database Real-Time Operations)
+// ============================================================================
+
+export async function createProfessionalInFirestore(pro: Professional): Promise<void> {
+  const path = `professionals/${pro.id}`;
+  try {
+    const docRef = doc(db, 'professionals', pro.id);
+    await setDoc(docRef, pro);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function updateProfessionalInFirestore(
+  proId: string,
+  updates: Partial<Professional>
+): Promise<void> {
+  const path = `professionals/${proId}`;
+  try {
+    const docRef = doc(db, 'professionals', proId);
+    await updateDoc(docRef, updates);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function createOpportunityInFirestore(opp: OpportunityItem): Promise<void> {
+  const path = `opportunities/${opp.id}`;
+  try {
+    const docRef = doc(db, 'opportunities', opp.id);
+    await setDoc(docRef, opp);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function updateOpportunityInFirestore(
+  oppId: string,
+  updates: Partial<OpportunityItem>
+): Promise<void> {
+  const path = `opportunities/${oppId}`;
+  try {
+    const docRef = doc(db, 'opportunities', oppId);
+    await updateDoc(docRef, updates);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+// ============================================================================
 // USER ACCOUNT & IDENTITY VERIFICATION SERVICES
 // ============================================================================
 
@@ -1060,4 +874,424 @@ export async function signInWithGooglePopup(): Promise<any> {
     throw error;
   }
 }
+
+export async function signInWithEmail(email: string, pass: string): Promise<any> {
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email, pass);
+    return cred.user;
+  } catch (error) {
+    console.warn('Firebase Email Sign-in notice:', error);
+    throw error;
+  }
+}
+
+export async function registerUserAccount(data: {
+  email: string;
+  password?: string;
+  name: string;
+  phone?: string;
+}): Promise<any> {
+  let uid = `user_${Date.now()}`;
+  if (data.password) {
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      uid = cred.user.uid;
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        const cred = await signInWithEmailAndPassword(auth, data.email, data.password);
+        uid = cred.user.uid;
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  const userDoc = {
+    id: uid,
+    email: data.email,
+    name: data.name,
+    phone: data.phone || '',
+    role: 'registered_user',
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    await setDoc(doc(db, 'users', uid), userDoc, { merge: true });
+  } catch (err) {
+    console.warn('User doc save notice:', err);
+  }
+  return userDoc;
+}
+
+export async function registerBusinessAccount(data: {
+  email: string;
+  password?: string;
+  businessName: string;
+  category: string;
+  city: string;
+  area: string;
+  phone: string;
+  whatsapp?: string;
+  address?: string;
+  pacraNumber?: string;
+  description?: string;
+}): Promise<{ user: any; business: Business; notification: BwanaNotification }> {
+  let uid = `biz_owner_${Date.now()}`;
+  if (data.password) {
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      uid = cred.user.uid;
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        try {
+          const cred = await signInWithEmailAndPassword(auth, data.email, data.password);
+          uid = cred.user.uid;
+        } catch {
+          // If signIn fails, fallback to existing email as identifier
+          uid = `biz_${data.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        }
+      } else {
+        console.warn('Firebase auth notice during registration (falling back to generated uid):', err?.message);
+        uid = `biz_owner_${Date.now()}`;
+      }
+    }
+  }
+
+  const businessId = `biz_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const newBusiness: Business = {
+    id: businessId,
+    name: data.businessName,
+    tagline: `Verified commercial provider in ${data.area}, ${data.city}`,
+    description: data.description || `${data.businessName} serving ${data.area}, ${data.city} with verified commercial services.`,
+    categoryId: data.category.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+    categoryName: data.category,
+    secondaryCategories: [data.category],
+    verificationStatus: 'unverified',
+    rating: 5.0,
+    reviewsCount: 1,
+    phone: data.phone,
+    whatsapp: data.whatsapp || data.phone,
+    email: data.email,
+    address: data.address || `${data.area}, ${data.city}`,
+    country: 'Zambia',
+    countryCode: 'ZM',
+    province: data.city.toLowerCase().includes('kitwe') || data.city.toLowerCase().includes('ndola') ? 'Copperbelt' : 'Lusaka',
+    city: data.city,
+    area: data.area,
+    coordinates: {
+      latitude: data.city.toLowerCase().includes('kitwe') ? -12.8024 : -15.4167,
+      longitude: data.city.toLowerCase().includes('kitwe') ? 28.2132 : 28.2833,
+    },
+    coverImage: 'https://images.unsplash.com/photo-1577495508048-b635879837f1?auto=format&fit=crop&q=80&w=800',
+    galleryImages: [],
+    isOpenNow: true,
+    hours: [
+      { day: 'Mon-Fri', open: '08:00', close: '18:00', isOpen: true },
+      { day: 'Sat', open: '08:30', close: '15:00', isOpen: true },
+      { day: 'Sun', open: 'Closed', close: 'Closed', isClosed: true },
+    ],
+    claimedByUserId: uid,
+    products: [],
+    services: [],
+    promotions: [],
+  };
+
+  const regNotification: BwanaNotification = {
+    id: `notif-reg-${Date.now()}`,
+    recipientType: 'business',
+    title: 'Business Registration Successful 🎉',
+    message: `${data.businessName} has been registered in ${data.city} and is now discoverable on Bwana.`,
+    timestamp: 'Just now',
+    read: false,
+    iconType: 'verification',
+    linkAction: businessId,
+  };
+
+  try {
+    await setDoc(doc(db, 'businesses', businessId), newBusiness, { merge: true });
+    insertBusinessIntoSupabase(newBusiness).catch(() => {});
+    const userProfile = {
+      id: uid,
+      email: data.email,
+      name: data.businessName,
+      role: 'business_owner',
+      businessId,
+      createdAt: new Date().toISOString()
+    };
+    await setDoc(doc(db, 'users', uid), userProfile, { merge: true });
+    await createNotificationInFirestore(regNotification);
+    insertNotificationIntoSupabase(regNotification).catch(() => {});
+    return { user: userProfile, business: newBusiness, notification: regNotification };
+  } catch (err) {
+    console.warn('Business registration Firestore notice:', err);
+    return {
+      user: {
+        id: uid,
+        email: data.email,
+        name: data.businessName,
+        role: 'business_owner',
+        businessId
+      },
+      business: newBusiness,
+      notification: regNotification
+    };
+  }
+}
+
+// ==========================================
+// DIRECT IN-APP USER-TO-BUSINESS CHAT (NO WHATSAPP)
+// ==========================================
+
+export function getDeterministicConversationId(businessId: string, userId: string): string {
+  const cleanBiz = businessId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const cleanUser = userId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `convo_${cleanBiz}_${cleanUser}`;
+}
+
+/**
+ * Send a message between a user and a business.
+ * Creates or updates the conversation record and appends a message document in the messages subcollection.
+ */
+export async function sendMessageToBusiness(
+  convoMeta: {
+    businessId: string;
+    businessName: string;
+    businessLogo?: string;
+    businessPhone?: string;
+    businessCity?: string;
+    businessArea?: string;
+    businessIsOpenNow?: boolean;
+    userId: string;
+    userName: string;
+    userPhone?: string;
+  },
+  messageData: {
+    senderId: string;
+    senderName: string;
+    senderRole: 'user' | 'business';
+    text: string;
+  }
+): Promise<{ conversationId: string; messageId: string }> {
+  const conversationId = getDeterministicConversationId(convoMeta.businessId, convoMeta.userId);
+  const now = new Date().toISOString();
+  const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+  const convoRef = doc(db, 'conversations', conversationId);
+  const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+
+  try {
+    // 1. Fetch current conversation to preserve createdAt and compute unread counts
+    const existingSnap = await getDoc(convoRef);
+    const existing = existingSnap.exists() ? (existingSnap.data() as ChatConversation) : null;
+
+    const unreadForUser =
+      messageData.senderRole === 'business'
+        ? (existing?.unreadCountForUser || 0) + 1
+        : 0;
+    const unreadForBusiness =
+      messageData.senderRole === 'user'
+        ? (existing?.unreadCountForBusiness || 0) + 1
+        : 0;
+
+    const conversationDoc: ChatConversation = {
+      id: conversationId,
+      businessId: convoMeta.businessId,
+      businessName: convoMeta.businessName,
+      businessLogo: convoMeta.businessLogo || existing?.businessLogo || '',
+      businessPhone: convoMeta.businessPhone || existing?.businessPhone || '',
+      businessCity: convoMeta.businessCity || existing?.businessCity || '',
+      businessArea: convoMeta.businessArea || existing?.businessArea || '',
+      businessIsOpenNow: convoMeta.businessIsOpenNow ?? existing?.businessIsOpenNow ?? true,
+      userId: convoMeta.userId,
+      userName: convoMeta.userName,
+      userPhone: convoMeta.userPhone || existing?.userPhone || '',
+      lastMessage: messageData.text,
+      lastMessageTimestamp: now,
+      unreadCountForUser: unreadForUser,
+      unreadCountForBusiness: unreadForBusiness,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+
+    const messageDoc: ChatMessage = {
+      id: messageId,
+      conversationId,
+      senderId: messageData.senderId,
+      senderName: messageData.senderName,
+      senderRole: messageData.senderRole,
+      text: messageData.text,
+      timestamp: now,
+      read: false,
+    };
+
+    // Use atomic batch write
+    const batch = writeBatch(db);
+    batch.set(convoRef, conversationDoc, { merge: true });
+    batch.set(msgRef, messageDoc);
+    await batch.commit();
+
+    return { conversationId, messageId };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `conversations/${conversationId}`);
+    throw error;
+  }
+}
+
+/**
+ * Real-time listener for messages in a single conversation
+ */
+export function subscribeToMessages(
+  conversationId: string,
+  callback: (messages: ChatMessage[]) => void
+): () => void {
+  const path = `conversations/${conversationId}/messages`;
+  const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+
+  const unsubscribe = onSnapshot(
+    messagesRef,
+    (snapshot) => {
+      const msgs: ChatMessage[] = [];
+      snapshot.forEach((docSnap) => {
+        msgs.push(docSnap.data() as ChatMessage);
+      });
+      // Sort chronologically ascending
+      msgs.sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      callback(msgs);
+    },
+    (err) => {
+      handleFirestoreError(err, OperationType.LIST, path);
+      callback([]);
+    }
+  );
+
+  return unsubscribe;
+}
+
+/**
+ * Real-time listener for all conversations belonging to a user
+ */
+export function subscribeToUserConversations(
+  userId: string,
+  callback: (convos: ChatConversation[]) => void
+): () => void {
+  const path = 'conversations';
+  const convosRef = collection(db, path);
+
+  const unsubscribe = onSnapshot(
+    convosRef,
+    (snapshot) => {
+      const list: ChatConversation[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as ChatConversation;
+        if (data.userId === userId) {
+          list.push(data);
+        }
+      });
+      // Sort most recent activity first
+      list.sort(
+        (a, b) =>
+          new Date(b.lastMessageTimestamp || b.updatedAt).getTime() -
+          new Date(a.lastMessageTimestamp || a.updatedAt).getTime()
+      );
+      callback(list);
+    },
+    (err) => {
+      handleFirestoreError(err, OperationType.LIST, path);
+      callback([]);
+    }
+  );
+
+  return unsubscribe;
+}
+
+/**
+ * Real-time listener for all conversations belonging to a business
+ */
+export function subscribeToBusinessConversations(
+  businessId: string,
+  callback: (convos: ChatConversation[]) => void
+): () => void {
+  const path = 'conversations';
+  const convosRef = collection(db, path);
+
+  const unsubscribe = onSnapshot(
+    convosRef,
+    (snapshot) => {
+      const list: ChatConversation[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as ChatConversation;
+        if (data.businessId === businessId) {
+          list.push(data);
+        }
+      });
+      list.sort(
+        (a, b) =>
+          new Date(b.lastMessageTimestamp || b.updatedAt).getTime() -
+          new Date(a.lastMessageTimestamp || a.updatedAt).getTime()
+      );
+      callback(list);
+    },
+    (err) => {
+      handleFirestoreError(err, OperationType.LIST, path);
+      callback([]);
+    }
+  );
+
+  return unsubscribe;
+}
+
+/**
+ * Real-time listener for all conversations on the platform (useful for merchant dashboard multi-tenant)
+ */
+export function subscribeToAllConversations(
+  callback: (convos: ChatConversation[]) => void
+): () => void {
+  const path = 'conversations';
+  const convosRef = collection(db, path);
+
+  const unsubscribe = onSnapshot(
+    convosRef,
+    (snapshot) => {
+      const list: ChatConversation[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as ChatConversation);
+      });
+      list.sort(
+        (a, b) =>
+          new Date(b.lastMessageTimestamp || b.updatedAt).getTime() -
+          new Date(a.lastMessageTimestamp || a.updatedAt).getTime()
+      );
+      callback(list);
+    },
+    (err) => {
+      handleFirestoreError(err, OperationType.LIST, path);
+      callback([]);
+    }
+  );
+
+  return unsubscribe;
+}
+
+/**
+ * Mark a conversation as read by a role (clears unreadCount)
+ */
+export async function markConversationAsRead(
+  conversationId: string,
+  readerRole: 'user' | 'business'
+): Promise<void> {
+  const path = `conversations/${conversationId}`;
+  try {
+    const convoRef = doc(db, 'conversations', conversationId);
+    if (readerRole === 'user') {
+      await updateDoc(convoRef, { unreadCountForUser: 0 });
+    } else {
+      await updateDoc(convoRef, { unreadCountForBusiness: 0 });
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
 

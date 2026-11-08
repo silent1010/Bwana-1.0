@@ -23,6 +23,7 @@ import {
   Lock
 } from 'lucide-react';
 import { Business, BusinessReview, UserRole, UserAccount } from '../../types';
+import { optimizeBusinessImage } from '../../lib/images/imageOptimizer';
 
 interface BusinessReviewsSectionProps {
   business: Business;
@@ -747,8 +748,10 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
                     className="relative aspect-square rounded-lg overflow-hidden border border-stone-200 bg-stone-100 group shadow-2xs"
                   >
                     <img
-                      src={photo}
+                      src={optimizeBusinessImage(photo, 400)}
                       alt={`Review attachment ${idx + 1}`}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-stone-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
@@ -1006,10 +1009,11 @@ export const BusinessReviewsSection: React.FC<BusinessReviewsSectionProps> = ({
                           className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden border border-stone-200 bg-stone-100 cursor-pointer group shadow-2xs hover:border-emerald-500 transition-all"
                         >
                           <img
-                            src={photo}
+                            src={optimizeBusinessImage(photo, 400)}
                             alt={`Photo by ${rev.userName} for ${business.name}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                             loading="lazy"
+                            decoding="async"
                           />
                           <div className="absolute inset-0 bg-stone-950/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <Maximize2 className="w-4 h-4 text-white drop-shadow-sm" />

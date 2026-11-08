@@ -9,6 +9,7 @@ import {
   Star
 } from 'lucide-react';
 import { Business } from '../../types';
+import { optimizeBusinessImage, DEFAULT_BUSINESS_COVER } from '../../lib/images/imageOptimizer';
 
 interface BusinessCardProps {
   business: Business;
@@ -16,6 +17,7 @@ interface BusinessCardProps {
   onCall: (phone: string, e: React.MouseEvent) => void;
   onWhatsApp: (whatsapp: string, e: React.MouseEvent) => void;
   onDirections: (biz: Business, e: React.MouseEvent) => void;
+  onChat?: (biz: Business, e: React.MouseEvent) => void;
   isSaved?: boolean;
   onToggleSave?: (bizId: string, e: React.MouseEvent) => void;
 }
@@ -26,6 +28,7 @@ export const BusinessCard: React.FC<BusinessCardProps> = ({
   onCall,
   onWhatsApp,
   onDirections,
+  onChat,
   isSaved = false,
   onToggleSave,
 }) => {
@@ -37,9 +40,14 @@ export const BusinessCard: React.FC<BusinessCardProps> = ({
       {/* Visual Header / Cover Image */}
       <div className="relative aspect-16/9 bg-stone-100 dark:bg-stone-800 overflow-hidden">
         <img
-          src={business.coverImage}
+          src={optimizeBusinessImage(business.coverImage, 400)}
           alt={business.name}
+          loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = DEFAULT_BUSINESS_COVER;
+          }}
           className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300"
         />
         
@@ -90,11 +98,25 @@ export const BusinessCard: React.FC<BusinessCardProps> = ({
                 <CheckCircle className="w-3 h-3 text-emerald-400" />
                 Verified Merchant
               </span>
+            ) : (business.googleMapsRegistered || business.id.startsWith('gmp-')) ? (
+              <span
+                className="shrink-0 text-[10px] font-semibold bg-sky-950/90 text-sky-300 border border-sky-500/50 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs"
+                title="Google Maps Platform registered place • Pending statutory admin verification"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
+                Google Maps • Verification Pending
+              </span>
             ) : null}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-stone-200 mt-0.5">
-            <span className="font-bold text-amber-400">★ {business.rating}</span>
-            <span className="text-stone-300">({business.reviewsCount} reviews)</span>
+            {business.reviewsCount < 3 ? (
+              <span className="font-medium text-amber-300">New • Be first to review</span>
+            ) : (
+              <>
+                <span className="font-bold text-amber-400">★ {business.rating}</span>
+                <span className="text-stone-300">({business.reviewsCount} reviews)</span>
+              </>
+            )}
             <span className="text-stone-400">·</span>
             <span className="truncate">{business.area}, {business.city}</span>
           </div>
@@ -162,29 +184,43 @@ export const BusinessCard: React.FC<BusinessCardProps> = ({
         </div>
 
         {/* Stitch Quick Action Button Row */}
-        <div className="pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between gap-2">
+        <div className="pt-3 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between gap-1.5">
           <button
             onClick={(e) => onCall(business.phone, e)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold transition-colors cursor-pointer"
-            title="Call business"
+            className="flex-1 flex items-center justify-center gap-1 py-2 px-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold transition-colors cursor-pointer"
+            title="Call business directly"
           >
             <Phone className="w-3.5 h-3.5 text-stone-600 dark:text-stone-400" />
             <span>Call</span>
           </button>
 
-          <button
-            onClick={(e) => onWhatsApp(business.whatsapp, e)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
-            title="Chat on WhatsApp"
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>WhatsApp</span>
-          </button>
+          {onChat ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onChat(business, e);
+              }}
+              className="flex-1.2 flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+              title="Direct In-App Chat (No WhatsApp required)"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Direct Chat</span>
+            </button>
+          ) : (
+            <button
+              onClick={(e) => onWhatsApp(business.whatsapp, e)}
+              className="flex-1 flex items-center justify-center gap-1 py-2 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+              title="Chat on WhatsApp"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>WhatsApp</span>
+            </button>
+          )}
 
           <button
             onClick={(e) => onDirections(business, e)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold transition-colors cursor-pointer"
-            title="Directions"
+            className="flex-1 flex items-center justify-center gap-1 py-2 px-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold transition-colors cursor-pointer"
+            title="Directions on Platform Map"
           >
             <Navigation className="w-3.5 h-3.5 text-stone-600 dark:text-stone-400" />
             <span>Map</span>

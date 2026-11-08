@@ -17,7 +17,6 @@ import {
   Lock
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
-import { INITIAL_WALLET_TRANSACTIONS } from '../../data/mockData';
 import { BwanaWalletTransaction } from '../../types';
 import {
   subscribeToWalletTransactions,
@@ -52,14 +51,12 @@ export const BwanaWalletModal: React.FC<BwanaWalletModalProps> = ({
   const [dailySavingsDays, setDailySavingsDays] = useState(30);
 
   // Transactions list
-  const [transactions, setTransactions] = useState<BwanaWalletTransaction[]>(INITIAL_WALLET_TRANSACTIONS);
+  const [transactions, setTransactions] = useState<BwanaWalletTransaction[]>([]);
 
   // Synchronize with live Firestore transactions ledger
   useEffect(() => {
     const unsub = subscribeToWalletTransactions((liveTxs) => {
-      if (liveTxs && liveTxs.length > 0) {
-        setTransactions(liveTxs);
-      }
+      setTransactions(liveTxs || []);
     });
     return () => {
       if (typeof unsub === 'function') unsub();

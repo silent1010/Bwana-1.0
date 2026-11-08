@@ -26,7 +26,8 @@ import {
   TrendingUp,
   BarChart3,
   Calendar,
-  Layers
+  Layers,
+  Navigation
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -41,6 +42,7 @@ import {
 } from 'recharts';
 import { VerificationRequest, AuditLogEntry, Business } from '../../types';
 import { EngineeringSpec } from '../architecture/EngineeringSpec';
+import { optimizeBusinessImage } from '../../lib/images/imageOptimizer';
 
 interface AdminDashboardProps {
   businesses: Business[];
@@ -48,7 +50,9 @@ interface AdminDashboardProps {
   auditLogs: AuditLogEntry[];
   onApproveVerification: (requestId: string, businessId: string) => void;
   onRejectVerification: (requestId: string, reason: string) => void;
+  onApproveGoogleMapsBusiness?: (businessId: string) => Promise<void> | void;
   onNavigateToBusiness?: (businessId: string) => void;
+  onDirections?: (biz: Business) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -57,9 +61,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   auditLogs,
   onApproveVerification,
   onRejectVerification,
+  onApproveGoogleMapsBusiness,
   onNavigateToBusiness,
+  onDirections,
 }) => {
-  const [activeTab, setActiveTab] = useState<'verifications' | 'audit_logs' | 'engineering_spec' | 'overview'>('verifications');
+  const [activeTab, setActiveTab] = useState<'verifications' | 'gmp_places' | 'audit_logs' | 'engineering_spec' | 'overview'>('verifications');
+  const [gmpCategoryFilter, setGmpCategoryFilter] = useState<'all' | 'malls' | 'medical' | 'commercial' | 'pending' | 'verified'>('all');
+  const [gmpSearchQuery, setGmpSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVerId, setSelectedVerId] = useState<string>(verifications[0]?.id || '');
@@ -92,6 +100,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!selectedVer) return null;
     return businesses.find((b) => b.id === selectedVer.businessId) || null;
   }, [businesses, selectedVer]);
+
+  // Google Maps Platform Registered Businesses
+  const googleMapsBusinesses = useMemo(() => {
+    return businesses.filter((b) => b.googleMapsRegistered || b.id.startsWith('gmp-'));
+  }, [businesses]);
+
+  const filteredGmpBusinesses = useMemo(() => {
+    return googleMapsBusinesses.filter((b) => {
+      const matchesSearch =
+        !gmpSearchQuery ||
+        b.name.toLowerCase().includes(gmpSearchQuery.toLowerCase()) ||
+        b.city.toLowerCase().includes(gmpSearchQuery.toLowerCase()) ||
+        b.area.toLowerCase().includes(gmpSearchQuery.toLowerCase()) ||
+        b.categoryName.toLowerCase().includes(gmpSearchQuery.toLowerCase()) ||
+        b.tags?.some((t) => t.toLowerCase().includes(gmpSearchQuery.toLowerCase()));
+
+      if (!matchesSearch) return false;
+
+      if (gmpCategoryFilter === 'all') return true;
+      if (gmpCategoryFilter === 'malls') {
+        return (
+          b.tags?.some((t) => t.toLowerCase().includes('mall')) ||
+          b.categoryName.toLowerCase().includes('mall') ||
+          b.name.toLowerCase().includes('mall')
+        );
+      }
+      if (gmpCategoryFilter === 'medical') {
+        return (
+          b.categoryId === 'cat-health' ||
+          b.name.toLowerCase().includes('hospital') ||
+          b.name.toLowerCase().includes('clinic') ||
+          b.tags?.some((t) => t.toLowerCase().includes('hospital') || t.toLowerCase().includes('clinic'))
+        );
+      }
+      if (gmpCategoryFilter === 'commercial') {
+        return (
+          b.categoryId !== 'cat-health' &&
+          !b.tags?.some((t) => t.toLowerCase().includes('mall')) &&
+          !b.name.toLowerCase().includes('mall')
+        );
+      }
+      if (gmpCategoryFilter === 'pending') {
+        return b.verificationStatus !== 'verified';
+      }
+      if (gmpCategoryFilter === 'verified') {
+        return b.verificationStatus === 'verified' || b.verificationTier === 'bwana_verified';
+      }
+
+      return true;
+    });
+  }, [googleMapsBusinesses, gmpSearchQuery, gmpCategoryFilter]);
 
   // Platform metrics from PRD section 19
   const platformStats = {
@@ -390,6 +449,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         >
           <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
           <span>Verification Queue ({verifications.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('gmp_places')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'gmp_places'
+              ? 'bg-stone-900 text-white shadow-2xs'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+          }`}
+        >
+          <Building2 className="w-3.5 h-3.5 text-sky-400" />
+          <span>Google Maps Registry ({googleMapsBusinesses.length})</span>
         </button>
 
         <button
@@ -780,8 +851,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                         <div className="h-32 bg-stone-200 rounded-lg overflow-hidden relative">
                           <img
-                            src={associatedBusiness?.coverImage || 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&auto=format&fit=crop&q=80'}
+                            src={optimizeBusinessImage(associatedBusiness?.coverImage, 400)}
                             alt="Facility"
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover"
                           />
                           <div className="absolute bottom-2 left-2 bg-stone-900/80 text-white px-2 py-0.5 rounded text-[10px] font-mono">
@@ -806,6 +879,301 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                 )}
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* GOOGLE MAPS REGISTRY & STATUTORY VERIFICATION TAB */}
+      {activeTab === 'gmp_places' && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="p-6 bg-gradient-to-r from-sky-950 via-stone-900 to-stone-950 border border-sky-500/40 rounded-3xl text-white shadow-md relative overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/40 font-mono text-[10px] font-bold">
+                    GOOGLE MAPS PLATFORM DATASET
+                  </span>
+                  <span className="text-stone-400">·</span>
+                  <span className="text-xs text-stone-300">Republic of Zambia Directory</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold font-display text-white tracking-tight mt-1">
+                  Google Maps Registered Malls, Hospitals & Enterprises
+                </h2>
+                <p className="text-xs sm:text-sm text-stone-300 max-w-2xl mt-1 leading-relaxed">
+                  These authentic Zambian places are loaded in advance from Google Maps with accurate GPS coordinates. Review and grant statutory Bwana Verified badges (✓) to elevate them to certified merchants in the live Firestore database.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="p-3 bg-sky-950/80 border border-sky-600/50 rounded-2xl text-center">
+                  <div className="text-[10px] text-sky-300 uppercase tracking-wider font-semibold">Pending Admin Review</div>
+                  <div className="text-lg font-bold font-mono text-white mt-0.5">
+                    {googleMapsBusinesses.filter((b) => b.verificationStatus !== 'verified').length} Unverified Places
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-white/10 text-center">
+              <div className="p-2.5 bg-black/40 rounded-xl border border-white/5">
+                <div className="text-[11px] text-stone-400">Total Google Maps Places</div>
+                <div className="text-lg font-bold font-mono text-white mt-0.5">{googleMapsBusinesses.length}</div>
+              </div>
+              <div className="p-2.5 bg-black/40 rounded-xl border border-white/5">
+                <div className="text-[11px] text-purple-300">Shopping Malls</div>
+                <div className="text-lg font-bold font-mono text-purple-200 mt-0.5">
+                  {googleMapsBusinesses.filter((b) => b.categoryName.includes('Mall') || b.tags?.some((t) => t.toLowerCase().includes('mall'))).length}
+                </div>
+              </div>
+              <div className="p-2.5 bg-black/40 rounded-xl border border-white/5">
+                <div className="text-[11px] text-rose-300">Hospitals & Clinics</div>
+                <div className="text-lg font-bold font-mono text-rose-200 mt-0.5">
+                  {googleMapsBusinesses.filter((b) => b.categoryId === 'cat-health' || b.name.includes('Hospital') || b.name.includes('Clinic') || b.name.includes('Medical')).length}
+                </div>
+              </div>
+              <div className="p-2.5 bg-black/40 rounded-xl border border-white/5">
+                <div className="text-[11px] text-emerald-300">Admin Verified (✓)</div>
+                <div className="text-lg font-bold font-mono text-emerald-200 mt-0.5">
+                  {googleMapsBusinesses.filter((b) => b.verificationStatus === 'verified' || b.verificationTier === 'bwana_verified').length}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Controls Bar: Search & Category Filter */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs">
+            <div className="flex items-center gap-2 flex-1 max-w-md bg-stone-50 px-3 py-2 rounded-xl border border-stone-200 text-xs">
+              <Search className="w-4 h-4 text-stone-400" />
+              <input
+                type="text"
+                placeholder="Search Google Maps places by name, city (Kitwe, Lusaka, Ndola), area, or tag..."
+                value={gmpSearchQuery}
+                onChange={(e) => setGmpSearchQuery(e.target.value)}
+                className="bg-transparent w-full focus:outline-none text-stone-900"
+              />
+              {gmpSearchQuery && (
+                <button
+                  onClick={() => setGmpSearchQuery('')}
+                  className="text-stone-400 hover:text-stone-600 font-mono text-xs"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <button
+                onClick={() => setGmpCategoryFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  gmpCategoryFilter === 'all'
+                    ? 'bg-stone-900 text-white'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                }`}
+              >
+                All ({googleMapsBusinesses.length})
+              </button>
+              <button
+                onClick={() => setGmpCategoryFilter('malls')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  gmpCategoryFilter === 'malls'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
+                }`}
+              >
+                Malls ({googleMapsBusinesses.filter((b) => b.categoryName.includes('Mall') || b.tags?.some((t) => t.toLowerCase().includes('mall'))).length})
+              </button>
+              <button
+                onClick={() => setGmpCategoryFilter('medical')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  gmpCategoryFilter === 'medical'
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                }`}
+              >
+                Clinics & Hospitals ({googleMapsBusinesses.filter((b) => b.categoryId === 'cat-health' || b.name.includes('Hospital') || b.name.includes('Clinic') || b.name.includes('Medical')).length})
+              </button>
+              <button
+                onClick={() => setGmpCategoryFilter('pending')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  gmpCategoryFilter === 'pending'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                }`}
+              >
+                Pending Review ({googleMapsBusinesses.filter((b) => b.verificationStatus !== 'verified').length})
+              </button>
+              <button
+                onClick={() => setGmpCategoryFilter('verified')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  gmpCategoryFilter === 'verified'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+              >
+                Verified (✓) ({googleMapsBusinesses.filter((b) => b.verificationStatus === 'verified' || b.verificationTier === 'bwana_verified').length})
+              </button>
+            </div>
+          </div>
+
+          {/* Places Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredGmpBusinesses.length === 0 ? (
+              <div className="col-span-full p-10 text-center bg-white rounded-3xl border border-stone-200 text-stone-500">
+                <Building2 className="w-8 h-8 mx-auto text-stone-400 mb-2 opacity-50" />
+                <p className="text-sm font-semibold">No Google Maps places found matching your filter.</p>
+                <button
+                  onClick={() => {
+                    setGmpSearchQuery('');
+                    setGmpCategoryFilter('all');
+                  }}
+                  className="mt-3 text-xs text-sky-600 hover:underline font-semibold"
+                >
+                  Reset all filters
+                </button>
+              </div>
+            ) : (
+              filteredGmpBusinesses.map((biz) => {
+                const isVerified = biz.verificationStatus === 'verified' || biz.verificationTier === 'bwana_verified';
+                const isMall = biz.categoryName.includes('Mall') || biz.tags?.some((t) => t.toLowerCase().includes('mall'));
+                const isHealth = biz.categoryId === 'cat-health' || biz.name.includes('Hospital') || biz.name.includes('Clinic') || biz.name.includes('Medical');
+
+                return (
+                  <div
+                    key={biz.id}
+                    className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-2xs hover:shadow-md transition-shadow flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Thumbnail Header */}
+                      <div className="relative aspect-16/9 bg-stone-100 overflow-hidden">
+                        <img
+                          src={optimizeBusinessImage(biz.coverImage, 400)}
+                          alt={biz.name}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-transparent to-black/20" />
+
+                        {/* Top Badges */}
+                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-bold bg-stone-900/90 text-white px-2 py-0.5 rounded-md backdrop-blur-xs">
+                            {biz.city}
+                          </span>
+                          {isMall && (
+                            <span className="text-[10px] font-bold bg-purple-900/90 text-purple-200 px-2 py-0.5 rounded-md backdrop-blur-xs">
+                              Shopping Mall
+                            </span>
+                          )}
+                          {isHealth && (
+                            <span className="text-[10px] font-bold bg-rose-900/90 text-rose-200 px-2 py-0.5 rounded-md backdrop-blur-xs">
+                              Hospital / Clinic
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Status in top right */}
+                        <div className="absolute top-2.5 right-2.5">
+                          {isVerified ? (
+                            <span className="text-[10px] font-bold bg-emerald-600 text-white px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                              <CheckCircle className="w-3 h-3" />
+                              <span>Verified ✓</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-semibold bg-sky-950/90 text-sky-300 border border-sky-400/50 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
+                              <span>Pending Admin</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Bottom Name & Rating */}
+                        <div className="absolute bottom-2.5 left-2.5 right-2.5 text-white">
+                          <h4 className="font-bold text-sm font-display leading-tight truncate">
+                            {biz.name}
+                          </h4>
+                          <div className="flex items-center gap-2 text-xs text-stone-200 mt-0.5">
+                            <span className="text-amber-400 font-bold">★ {biz.rating}</span>
+                            <span className="text-stone-300">({biz.reviewsCount} Google reviews)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Content Body */}
+                      <div className="p-4 space-y-2.5 text-xs text-stone-600">
+                        <p className="line-clamp-2 leading-relaxed">
+                          {biz.description}
+                        </p>
+
+                        <div className="space-y-1 font-mono text-[11px] text-stone-500 pt-1 border-t border-stone-100">
+                          <div>📍 {biz.address}</div>
+                          {biz.phone && <div>📞 {biz.phone}</div>}
+                          <div>🌐 GPS: {biz.coordinates.latitude.toFixed(4)}, {biz.coordinates.longitude.toFixed(4)}</div>
+                        </div>
+
+                        {/* Tags */}
+                        {biz.tags && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {biz.tags.slice(0, 3).map((tag, idx) => (
+                              <span
+                                key={idx}
+                                className="text-[10px] bg-stone-100 text-stone-600 px-2 py-0.5 rounded"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions Footer */}
+                    <div className="p-4 pt-2 border-t border-stone-100 flex items-center gap-2">
+                      {!isVerified ? (
+                        <button
+                          onClick={async () => {
+                            if (onApproveGoogleMapsBusiness) {
+                              await onApproveGoogleMapsBusiness(biz.id);
+                            }
+                          }}
+                          className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <BadgeCheck className="w-3.5 h-3.5" />
+                          <span>Verify & Award Badge ✓</span>
+                        </button>
+                      ) : (
+                        <div className="flex-1 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Bwana Verified Active</span>
+                        </div>
+                      )}
+
+                      {onNavigateToBusiness && (
+                        <button
+                          onClick={() => onNavigateToBusiness(biz.id)}
+                          className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs transition-colors cursor-pointer"
+                          title="View public profile modal"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {onDirections && (
+                        <button
+                          type="button"
+                          onClick={() => onDirections(biz)}
+                          className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1 font-semibold"
+                          title="Navigate to this location in-app"
+                        >
+                          <Navigation className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="hidden sm:inline">Directions</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

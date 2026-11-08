@@ -12,10 +12,13 @@ import {
   Briefcase,
   History,
   Trash2,
-  Clock
+  Clock,
+  Star,
+  Truck
 } from 'lucide-react';
 import { Business, Category, LocationArea, Professional } from '../../types';
-import { CATEGORIES } from '../../data/mockData';
+import { DATABASE_CATEGORIES } from '../../services/dbSeeder';
+import { optimizeBusinessImage, DEFAULT_BUSINESS_COVER } from '../../lib/images/imageOptimizer';
 
 interface SearchEngineModalProps {
   isOpen: boolean;
@@ -39,6 +42,9 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [onlyVerified, setOnlyVerified] = useState(false);
+  const [openNowOnly, setOpenNowOnly] = useState(false);
+  const [highestRatedOnly, setHighestRatedOnly] = useState(false);
+  const [offersDeliveryOnly, setOffersDeliveryOnly] = useState(false);
   const [maxDistance, setMaxDistance] = useState<number>(25);
 
   const [searchHistory, setSearchHistory] = useState<string[]>(() => {
@@ -89,10 +95,16 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
 
     if (lower.includes('plumber') || lower.includes('electrician') || lower.includes('developer') || lower.includes('lawyer') || lower.includes('accountant')) {
       detectedIntent = 'professional_search';
+    } else if (lower.includes('hospital') || lower.includes('emergency') || lower.includes('trauma') || lower.includes('icu')) {
+      detectedIntent = 'category_search';
+      detectedCategory = 'Hospital';
+    } else if (lower.includes('clinic') || lower.includes('private clinic') || lower.includes('doctor') || lower.includes('gp') || lower.includes('consultation')) {
+      detectedIntent = 'category_search';
+      detectedCategory = 'Private Clinic';
     } else if (lower.includes('eat') || lower.includes('restaurant') || lower.includes('food') || lower.includes('cafe')) {
       detectedIntent = 'category_search';
       detectedCategory = 'Food & Dining';
-    } else if (lower.includes('pharmacy') || lower.includes('pharmacies') || lower.includes('chemist') || lower.includes('clinic')) {
+    } else if (lower.includes('pharmacy') || lower.includes('pharmacies') || lower.includes('chemist')) {
       detectedIntent = 'category_search';
       detectedCategory = 'Health & Medical';
     } else if (lower.includes('hotel') || lower.includes('lodge') || lower.includes('accommodation') || lower.includes('resort')) {
@@ -133,15 +145,42 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
         b.services?.some((s) => s.name.toLowerCase().includes(q));
 
       const matchCategory =
-        selectedCategory === 'all' || b.categoryId === selectedCategory;
+        selectedCategory === 'all' ||
+        b.categoryId === selectedCategory ||
+        (selectedCategory === 'cat-hospital' && (b.categoryId === 'cat-hospital' || b.categoryName.toLowerCase().includes('hospital'))) ||
+        (selectedCategory === 'cat-private-clinic' && (b.categoryId === 'cat-private-clinic' || b.categoryName.toLowerCase().includes('clinic')));
 
       const matchVerified = !onlyVerified || b.verificationStatus === 'verified';
+      const matchOpenNow = !openNowOnly || b.isOpenNow;
+      const matchHighestRated = !highestRatedOnly || (b.rating || 0) >= 4.5;
+      const matchDelivery =
+        !offersDeliveryOnly ||
+        b.tags?.some((t) => t.toLowerCase().includes('delivery')) ||
+        b.attributes?.some((a) => a.toLowerCase().includes('delivery')) ||
+        b.description?.toLowerCase().includes('delivery');
 
       const matchDistance = (b.distanceKm || 0) <= maxDistance;
 
-      return matchText && matchCategory && matchVerified && matchDistance;
+      return (
+        matchText &&
+        matchCategory &&
+        matchVerified &&
+        matchOpenNow &&
+        matchHighestRated &&
+        matchDelivery &&
+        matchDistance
+      );
     });
-  }, [businesses, query, selectedCategory, onlyVerified, maxDistance]);
+  }, [
+    businesses,
+    query,
+    selectedCategory,
+    onlyVerified,
+    openNowOnly,
+    highestRatedOnly,
+    offersDeliveryOnly,
+    maxDistance,
+  ]);
 
   // Filtered professionals
   const matchedProfessionals = useMemo(() => {
@@ -195,6 +234,8 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
               Try:
             </span>
             {[
+              'Hospitals with emergency',
+              'Private clinics in Kitwe',
               'Restaurants near me',
               'Phone repair shops in Kitwe',
               'Plumbers in Lusaka',
@@ -300,7 +341,7 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
             >
               All Categories
             </button>
-            {CATEGORIES.slice(0, 5).map((cat) => (
+            {DATABASE_CATEGORIES.slice(0, 6).map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
@@ -315,7 +356,43 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
             ))}
           </div>
 
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            <button
+              onClick={() => setOpenNowOnly(!openNowOnly)}
+              className={`px-2 py-0.5 rounded text-[11px] font-semibold border flex items-center gap-1 transition-colors cursor-pointer ${
+                openNowOnly
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+              }`}
+            >
+              <Clock className="w-3 h-3" />
+              <span>Open Now</span>
+            </button>
+
+            <button
+              onClick={() => setHighestRatedOnly(!highestRatedOnly)}
+              className={`px-2 py-0.5 rounded text-[11px] font-semibold border flex items-center gap-1 transition-colors cursor-pointer ${
+                highestRatedOnly
+                  ? 'bg-amber-500 text-stone-950 border-amber-500 font-bold'
+                  : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+              }`}
+            >
+              <Star className="w-3 h-3 fill-current" />
+              <span>Highest Rated</span>
+            </button>
+
+            <button
+              onClick={() => setOffersDeliveryOnly(!offersDeliveryOnly)}
+              className={`px-2 py-0.5 rounded text-[11px] font-semibold border flex items-center gap-1 transition-colors cursor-pointer ${
+                offersDeliveryOnly
+                  ? 'bg-sky-600 text-white border-sky-600'
+                  : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+              }`}
+            >
+              <Truck className="w-3 h-3" />
+              <span>Delivery</span>
+            </button>
+
             <label className="flex items-center gap-1.5 cursor-pointer text-stone-700">
               <input
                 type="checkbox"
@@ -323,7 +400,7 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
                 onChange={(e) => setOnlyVerified(e.target.checked)}
                 className="rounded border-stone-300 text-emerald-600 focus:ring-emerald-500"
               />
-              <span>Verified ✓ Only</span>
+              <span>Verified ✓</span>
             </label>
             <div className="flex items-center gap-1 text-stone-500">
               <span>Within</span>
@@ -375,8 +452,13 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <img
-                        src={biz.coverImage}
+                        src={optimizeBusinessImage(biz.coverImage, 400)}
                         alt={biz.name}
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = DEFAULT_BUSINESS_COVER;
+                        }}
                         className="w-12 h-12 rounded-lg object-cover bg-stone-100 shrink-0"
                       />
                       <div className="min-w-0">
@@ -432,8 +514,10 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
                     className="p-3 bg-stone-50 hover:bg-emerald-50/40 border border-stone-200 rounded-lg flex items-center gap-3 cursor-pointer transition-colors"
                   >
                     <img
-                      src={pro.avatar}
+                      src={optimizeBusinessImage(pro.avatar, 200)}
                       alt={pro.name}
+                      loading="lazy"
+                      decoding="async"
                       className="w-10 h-10 rounded-full object-cover shrink-0"
                     />
                     <div className="min-w-0">

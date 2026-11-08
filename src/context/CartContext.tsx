@@ -64,62 +64,6 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-const INITIAL_ORDERS: Order[] = [
-  {
-    id: 'ord-1001',
-    businessId: 'biz-abc-hardware',
-    businessName: 'ABC Hardware & Construction',
-    items: [
-      {
-        product: {
-          id: 'prod-1',
-          businessId: 'biz-abc-hardware',
-          name: 'Portland Composite Cement (Dangote 42.5N, 50kg)',
-          price: 185,
-          priceType: 'fixed',
-          currency: 'ZMW',
-          inStock: true,
-          category: 'Building Materials',
-        },
-        businessId: 'biz-abc-hardware',
-        businessName: 'ABC Hardware & Construction',
-        quantity: 4,
-      },
-      {
-        product: {
-          id: 'prod-4',
-          businessId: 'biz-abc-hardware',
-          name: 'Industrial Heavy-Duty Angle Grinder 2300W',
-          price: 1450,
-          priceType: 'fixed',
-          currency: 'ZMW',
-          inStock: true,
-          category: 'Power Tools',
-        },
-        businessId: 'biz-abc-hardware',
-        businessName: 'ABC Hardware & Construction',
-        quantity: 1,
-      },
-    ],
-    subtotal: 2190,
-    deliveryFee: 45,
-    platformSplitFee: 21.90, // 1% of subtotal
-    merchantPayout: 2168.10, // 99% of subtotal
-    total: 2235,
-    customerName: 'Mwamba Chisanga',
-    customerPhone: '+260 97 711 8330',
-    deliveryAddress: 'Plot 418, Riverside Ext, Kitwe',
-    notes: 'Please call when offloading rebar and cement.',
-    paymentMethod: 'mtn_momo',
-    paymentStatus: 'paid',
-    orderStatus: 'preparing',
-    trackingNumber: 'BWN-KTW-8842',
-    courierName: 'Kondwani Banda (Bwana Rider)',
-    courierPhone: '+260 96 220 9140',
-    createdAt: 'Today, 08:30 AM',
-  },
-];
-
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
@@ -133,18 +77,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
       const saved = localStorage.getItem('bwana_orders');
-      return saved ? JSON.parse(saved) : INITIAL_ORDERS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return INITIAL_ORDERS;
+      return [];
     }
   });
 
   // Synchronize orders with live Firestore database
   useEffect(() => {
     const unsubscribe = subscribeToOrders((liveOrders) => {
-      if (liveOrders && liveOrders.length > 0) {
-        setOrders(liveOrders);
-      }
+      setOrders(liveOrders || []);
     });
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();

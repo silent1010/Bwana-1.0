@@ -1,5 +1,6 @@
 import React from 'react';
 import { MapPin, Globe, Shield, Lock, Truck, Users, Package, Wallet, MessageSquare } from 'lucide-react';
+import { BwanaLogo } from '../common/BwanaLogo';
 
 interface FooterProps {
   onSelectTab: (tab: string) => void;
@@ -26,11 +27,7 @@ export const Footer: React.FC<FooterProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand & Location */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-bold font-display text-stone-900 dark:text-white tracking-tight">
-                Bwana
-              </span>
-            </div>
+            <BwanaLogo size="md" variant="full" />
             <p className="text-stone-600 dark:text-stone-400 text-xs leading-relaxed">
               Location-based discovery and super-app connecting people with verified businesses, compound kantembas, wholesalers, on-demand logistics, and economic opportunities across Zambia.
             </p>

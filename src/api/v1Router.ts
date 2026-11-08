@@ -21,14 +21,10 @@ import {
 } from './types/apiContracts';
 import { checkRateLimit } from './middleware/rateLimiter';
 import { parseAuthorizationHeader, authorizeRoles } from './middleware/authMiddleware';
-import {
-  INITIAL_BUSINESSES,
-  INITIAL_REVIEWS,
-  CATEGORIES,
-  SYSTEM_USERS,
-  calculateDistanceKm
-} from '../data/mockData';
-import { HIERARCHICAL_LOCATIONS, SUPPORTED_COUNTRIES } from '../data/geoHierarchy';
+import { DATABASE_CATEGORIES, DATABASE_BUSINESSES } from '../services/dbSeeder';
+import { getCachedBusinessesFromOffline } from '../services/offlineCache';
+import { HIERARCHICAL_LOCATIONS, SUPPORTED_COUNTRIES, calculateDistanceKm } from '../data/geoHierarchy';
+import { SYSTEM_USERS } from '../data/mockData';
 import { Business, BusinessReview, UserRole, LocationArea } from '../types';
 
 export interface ApiRequestOptions {
@@ -38,12 +34,21 @@ export interface ApiRequestOptions {
   ip?: string;
 }
 
-// In-memory persistent state for API actions
-let apiBusinesses: Business[] = [...INITIAL_BUSINESSES];
-let apiReviews: BusinessReview[] = [...INITIAL_REVIEWS];
-let apiFavorites: Record<string, string[]> = {
-  'usr-cust-01': ['biz-abc-hardware'],
-};
+// Live database synced state for API actions
+let apiBusinesses: Business[] = [];
+
+export function setApiBusinesses(businesses: Business[]): void {
+  apiBusinesses = businesses;
+}
+
+export function getEffectiveApiBusinesses(): Business[] {
+  if (apiBusinesses.length > 0) return apiBusinesses;
+  const cached = getCachedBusinessesFromOffline();
+  if (cached.businesses && cached.businesses.length > 0) return cached.businesses;
+  return DATABASE_BUSINESSES;
+}
+let apiReviews: BusinessReview[] = [];
+let apiFavorites: Record<string, string[]> = {};
 let apiReports: Array<{
   id: string;
   targetType: 'business' | 'review';
@@ -142,7 +147,7 @@ export async function handleApiV1Request<T = any>(
       const sortBy = queryParams.get('sortBy') || 'rating';
       const sortOrder = (queryParams.get('sortOrder') || 'desc') as 'asc' | 'desc';
 
-      let results = [...apiBusinesses];
+      let results = [...getEffectiveApiBusinesses()];
 
       if (category && category !== 'all') {
         results = results.filter((b) => b.categoryId === category);
@@ -228,8 +233,8 @@ export async function handleApiV1Request<T = any>(
     // 4. /api/v1/categories
     // -------------------------------------------------------------------------
     if (cleanPath === '/api/v1/categories' && method === 'GET') {
-      return createSuccessResponse(CATEGORIES, {
-        total: CATEGORIES.length,
+      return createSuccessResponse(DATABASE_CATEGORIES, {
+        total: DATABASE_CATEGORIES.length,
         executionTimeMs: Date.now() - startTime,
       }) as unknown as ApiResponse<T>;
     }

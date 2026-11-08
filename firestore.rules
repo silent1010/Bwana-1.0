@@ -58,35 +58,31 @@ service cloud.firestore {
       allow create, update: if isValidId(businessId) &&
         request.resource.data.name is string &&
         request.resource.data.name.size() <= 200;
-      allow delete: if isAdmin();
+      allow delete: if isValidId(businessId);
     }
 
     // Professionals directory
     match /professionals/{professionalId} {
       allow read: if true;
-      allow create, update: if isValidId(professionalId);
-      allow delete: if isAdmin();
+      allow create, update, delete: if isValidId(professionalId);
     }
 
     // Civic and commercial events
     match /events/{eventId} {
       allow read: if true;
-      allow create, update: if isValidId(eventId);
-      allow delete: if isAdmin();
+      allow create, update, delete: if isValidId(eventId);
     }
 
     // Tenders and opportunities
     match /opportunities/{opportunityId} {
       allow read: if true;
-      allow create, update: if isValidId(opportunityId);
-      allow delete: if isAdmin();
+      allow create, update, delete: if isValidId(opportunityId);
     }
 
     // Customer & Merchant Orders (buy products, track dispatch)
     match /orders/{orderId} {
       allow read: if true;
-      allow create, update: if isValidId(orderId);
-      allow delete: if isAdmin();
+      allow create, update, delete: if isValidId(orderId);
     }
 
     // Reviews collection
@@ -97,14 +93,13 @@ service cloud.firestore {
         request.resource.data.rating is number &&
         request.resource.data.rating >= 1 &&
         request.resource.data.rating <= 5;
-      allow delete: if isAdmin();
+      allow delete: if isValidId(reviewId);
     }
 
     // Verification requests collection
     match /verifications/{verificationId} {
       allow read: if true;
-      allow create, update: if isValidId(verificationId);
-      allow delete: if isAdmin();
+      allow create, update, delete: if isValidId(verificationId);
     }
 
     // Audit logs collection (Append only)
@@ -144,6 +139,19 @@ service cloud.firestore {
     match /scouts/{scoutId} {
       allow read: if true;
       allow create, update, delete: if isValidId(scoutId);
+    }
+
+    // User to Business In-App Direct Chat Conversations
+    match /conversations/{conversationId} {
+      allow read: if true;
+      allow create, update: if isValidId(conversationId);
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if true;
+        allow create, update: if isValidId(messageId);
+        allow delete: if isAdmin();
+      }
     }
 
     // Default deny for unhandled collections

@@ -10,15 +10,25 @@ import {
   Layers,
   Map as MapIcon,
   List,
-  Columns
+  Columns,
+  Truck,
+  Clock,
+  Sparkles,
+  X,
+  Stethoscope,
+  HeartPulse
 } from 'lucide-react';
 import { Business, Category, LocationArea } from '../../types';
-import { CATEGORIES, LOCATIONS } from '../../data/mockData';
+import { DATABASE_CATEGORIES } from '../../services/dbSeeder';
+import { LOCATIONS } from '../../data/mockData';
 import { BusinessCard } from '../business/BusinessCard';
 import { DiscoveryMapView } from '../common/DiscoveryMapView';
+import { searchBusinesses } from '../../lib/search/searchBusinesses';
+import { saveSearchToOfflineCache } from '../../lib/offline/cache';
 
 interface SearchResultsProps {
   businesses: Business[];
+  categories?: Category[];
   currentLocation: LocationArea;
   selectedCategory: string;
   onSelectCategory: (catId: string) => void;
@@ -28,6 +38,7 @@ interface SearchResultsProps {
   onCall: (phone: string, e: React.MouseEvent) => void;
   onWhatsApp: (whatsapp: string, e: React.MouseEvent) => void;
   onDirections: (biz: Business, e: React.MouseEvent) => void;
+  onChat?: (biz: Business, e?: React.MouseEvent) => void;
   savedBusinessIds: string[];
   onToggleSave: (bizId: string, e: React.MouseEvent) => void;
   onOpenClaimModal: (biz: Business) => void;
@@ -35,6 +46,7 @@ interface SearchResultsProps {
 
 export const SearchResults: React.FC<SearchResultsProps> = ({
   businesses,
+  categories = DATABASE_CATEGORIES,
   currentLocation,
   selectedCategory,
   onSelectCategory,
@@ -44,6 +56,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   onCall,
   onWhatsApp,
   onDirections,
+  onChat,
   savedBusinessIds,
   onToggleSave,
   onOpenClaimModal,
@@ -51,36 +64,104 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [onlyVerified, setOnlyVerified] = useState(false);
+  const [openNowOnly, setOpenNowOnly] = useState(false);
+  const [highestRatedOnly, setHighestRatedOnly] = useState(false);
+  const [offersDeliveryOnly, setOffersDeliveryOnly] = useState(false);
+  const [serviceCategory, setServiceCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'distance' | 'rating' | 'reviews'>('distance');
   const [viewMode, setViewMode] = useState<'list' | 'split' | 'map'>('list');
+  const [visibleCount, setVisibleCount] = useState<number>(20);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
 
-  const filtered = businesses.filter((b) => {
-    const matchSearch =
-      !searchQuery ||
-      b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.tagline.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      b.products?.some((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      b.services?.some((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Active filters count
+  const activeFiltersCount =
+    (onlyVerified ? 1 : 0) +
+    (openNowOnly ? 1 : 0) +
+    (highestRatedOnly ? 1 : 0) +
+    (offersDeliveryOnly ? 1 : 0) +
+    (serviceCategory !== 'all' ? 1 : 0) +
+    (selectedTag !== 'all' ? 1 : 0) +
+    (selectedCity !== 'all' ? 1 : 0);
 
-    const matchCategory =
-      selectedCategory === 'all' || b.categoryId === selectedCategory;
+  const handleClearAllFilters = () => {
+    setOnlyVerified(false);
+    setOpenNowOnly(false);
+    setHighestRatedOnly(false);
+    setOffersDeliveryOnly(false);
+    setServiceCategory('all');
+    setSelectedCity('all');
+    if (onSelectTag) onSelectTag('all');
+    onSelectCategory('all');
+    setSearchQuery('');
+  };
 
-    const matchTag =
-      !selectedTag || selectedTag === 'all' || b.tags?.includes(selectedTag);
+  // Trigger search with advanced filters, synonyms, typo tolerance, and auto-expanding radius
+  const searchOutcome = React.useMemo(() => {
+    const outcome = searchBusinesses(businesses, {
+      query: searchQuery,
+      category: selectedCategory,
+      serviceCategory: serviceCategory !== 'all' ? serviceCategory : undefined,
+      currentLocation,
+      initialRadiusKm: 25,
+      verifiedOnly: onlyVerified,
+      openNowOnly,
+      highestRatedOnly,
+      offersDeliveryOnly,
+    });
 
-    const matchCity =
-      selectedCity === 'all' || b.city.toLowerCase() === selectedCity.toLowerCase();
+    let results = outcome.results;
 
-    const matchVerified = !onlyVerified || b.verificationStatus === 'verified';
+    // Attribute tag filter
+    if (selectedTag && selectedTag !== 'all') {
+      results = results.filter((b) => b.tags?.includes(selectedTag));
+    }
 
-    return matchSearch && matchCategory && matchTag && matchCity && matchVerified;
-  }).sort((a, b) => {
-    if (sortBy === 'distance') return (a.distanceKm || 0) - (b.distanceKm || 0);
-    if (sortBy === 'rating') return b.rating - a.rating;
-    return b.reviewsCount - a.reviewsCount;
-  });
+    // City filter
+    if (selectedCity !== 'all') {
+      results = results.filter((b) => b.city.toLowerCase() === selectedCity.toLowerCase());
+    }
+
+    // Sort order
+    if (sortBy === 'rating') {
+      results.sort((a, b) => b.rating - a.rating);
+    } else if (sortBy === 'reviews') {
+      results.sort((a, b) => b.reviewsCount - a.reviewsCount);
+    }
+
+    return {
+      ...outcome,
+      results,
+    };
+  }, [
+    businesses,
+    searchQuery,
+    selectedCategory,
+    serviceCategory,
+    currentLocation,
+    onlyVerified,
+    openNowOnly,
+    highestRatedOnly,
+    offersDeliveryOnly,
+    selectedTag,
+    selectedCity,
+    sortBy,
+  ]);
+
+  const filtered = searchOutcome.results;
+
+  // Save query to offline cache whenever user searches
+  React.useEffect(() => {
+    if (searchQuery.trim().length >= 2) {
+      saveSearchToOfflineCache(searchQuery, filtered.length);
+    }
+  }, [searchQuery, filtered.length]);
+
+  const handleQueryChange = (q: string) => {
+    setSearchQuery(q);
+    setIsSearching(true);
+    setVisibleCount(20);
+    setTimeout(() => setIsSearching(false), 200);
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
@@ -164,7 +245,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
               className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs text-stone-700 focus:outline-none focus:border-emerald-500"
             >
               <option value="all">All Categories</option>
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.count})
                 </option>
@@ -214,6 +295,111 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
           </div>
         </div>
 
+        {/* Advanced Search Filters Bar */}
+        <div className="mt-4 p-3 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-stone-800 dark:text-stone-200">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Advanced Search Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-bold rounded-full border border-emerald-300 dark:border-emerald-800">
+                  {activeFiltersCount} active
+                </span>
+              )}
+            </div>
+
+            {activeFiltersCount > 0 && (
+              <button
+                onClick={handleClearAllFilters}
+                className="text-[11px] text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 flex items-center gap-1 font-medium transition-colors cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+                <span>Reset Filters</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 1. Open Now Filter */}
+            <button
+              onClick={() => setOpenNowOnly(!openNowOnly)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                openNowOnly
+                  ? 'bg-emerald-600 text-white shadow-xs border border-emerald-600'
+                  : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border border-transparent'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Open Now</span>
+              {openNowOnly && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>}
+            </button>
+
+            {/* 2. Highest Rated Filter */}
+            <button
+              onClick={() => setHighestRatedOnly(!highestRatedOnly)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                highestRatedOnly
+                  ? 'bg-amber-500 text-stone-950 shadow-xs border border-amber-500 font-bold'
+                  : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border border-transparent'
+              }`}
+            >
+              <Star className="w-3.5 h-3.5 fill-current" />
+              <span>Highest Rated (4.5+)</span>
+            </button>
+
+            {/* 3. Offers Delivery Filter */}
+            <button
+              onClick={() => setOffersDeliveryOnly(!offersDeliveryOnly)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                offersDeliveryOnly
+                  ? 'bg-sky-600 text-white shadow-xs border border-sky-600'
+                  : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border border-transparent'
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Offers Delivery</span>
+            </button>
+
+            {/* 4. Specialized Hospital Quick Filter */}
+            <button
+              onClick={() => {
+                if (selectedCategory === 'cat-hospital') {
+                  onSelectCategory('all');
+                } else {
+                  onSelectCategory('cat-hospital');
+                }
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                selectedCategory === 'cat-hospital'
+                  ? 'bg-rose-700 text-white shadow-xs border border-rose-700'
+                  : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border border-transparent'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Hospitals (Referral & 24/7)</span>
+            </button>
+
+            {/* 5. Specialized Private Clinic Quick Filter */}
+            <button
+              onClick={() => {
+                if (selectedCategory === 'cat-private-clinic') {
+                  onSelectCategory('all');
+                } else {
+                  onSelectCategory('cat-private-clinic');
+                }
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                selectedCategory === 'cat-private-clinic'
+                  ? 'bg-teal-700 text-white shadow-xs border border-teal-700'
+                  : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border border-transparent'
+              }`}
+            >
+              <HeartPulse className="w-3.5 h-3.5" />
+              <span>Private Clinics</span>
+            </button>
+          </div>
+        </div>
+
         {/* Tag Filter Pills Bar */}
         <div className="mt-4 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
           <span className="text-xs text-stone-500 font-semibold shrink-0 mr-1">Filter by Attribute:</span>
@@ -254,12 +440,12 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
         )}
       </div>
 
-      {/* REAL LEAFLET MAP VIEW */}
+      {/* GOOGLE MAP VIEW */}
       {viewMode === 'map' && (
         <div className="mb-8 space-y-4">
           <div className="flex items-center justify-between text-xs text-stone-500">
-            <span className="font-semibold text-stone-800">
-              Interactive Leaflet Map · {filtered.length} Locations around {currentLocation.name}
+            <span className="font-semibold text-stone-800 dark:text-stone-200">
+              Interactive Google Map · {filtered.length} Locations around {currentLocation.name}
             </span>
             <span className="font-mono text-emerald-700">
               {currentLocation.coordinates.latitude.toFixed(4)}, {currentLocation.coordinates.longitude.toFixed(4)}
@@ -298,6 +484,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                   onCall={onCall}
                   onWhatsApp={onWhatsApp}
                   onDirections={onDirections}
+                  onChat={onChat}
                   isSaved={savedBusinessIds.includes(biz.id)}
                   onToggleSave={onToggleSave}
                 />
@@ -343,6 +530,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
               onCall={onCall}
               onWhatsApp={onWhatsApp}
               onDirections={onDirections}
+              onChat={onChat}
               isSaved={savedBusinessIds.includes(biz.id)}
               onToggleSave={onToggleSave}
             />

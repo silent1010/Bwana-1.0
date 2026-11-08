@@ -129,6 +129,16 @@ export function formatCachedTimestamp(timestamp: number | null): string {
 }
 
 /**
+ * Clear cached offline data to ensure fresh live data sync
+ */
+export function clearOfflineCache(): void {
+  try {
+    localStorage.removeItem(CACHE_KEYS.BUSINESSES);
+    localStorage.removeItem(CACHE_KEYS.METADATA);
+  } catch {}
+}
+
+/**
  * Ensures any stale service worker is completely unregistered and caches purged
  * to prevent white-screen interception and bundle loading issues.
  */

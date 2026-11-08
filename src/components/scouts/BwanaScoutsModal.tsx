@@ -17,7 +17,6 @@ import {
   TrendingUp,
   Award
 } from 'lucide-react';
-import { INITIAL_SCOUTS } from '../../data/mockData';
 import { ScoutOnboardingRecord } from '../../types';
 import { subscribeToScouts, createScoutInFirestore } from '../../services/firebase';
 
@@ -77,14 +76,12 @@ export const BwanaScoutsModal: React.FC<BwanaScoutsModalProps> = ({
   const [crowdAirtimePhone, setCrowdAirtimePhone] = useState('+260 97 ');
   const [crowdSubmitted, setCrowdSubmitted] = useState(false);
 
-  const [scoutRecords, setScoutRecords] = useState<ScoutOnboardingRecord[]>(INITIAL_SCOUTS);
+  const [scoutRecords, setScoutRecords] = useState<ScoutOnboardingRecord[]>([]);
 
   // Synchronize with live Firestore scouts collection
   useEffect(() => {
     const unsub = subscribeToScouts((liveScouts) => {
-      if (liveScouts && liveScouts.length > 0) {
-        setScoutRecords(liveScouts);
-      }
+      setScoutRecords(liveScouts || []);
     });
     return () => {
       if (typeof unsub === 'function') unsub();
