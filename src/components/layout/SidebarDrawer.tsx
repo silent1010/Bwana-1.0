@@ -27,6 +27,7 @@ import {
   Package,
   MessageCircle,
   MessageSquare,
+  Sparkles,
   User
 } from 'lucide-react';
 import { UserRole, LocationArea } from '../../types';
@@ -169,8 +170,33 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
 
         {/* Navigation Links list */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1 text-xs">
-          {/* User Dashboard Direct Link (If Authenticated) */}
-          {isAuthenticated && (
+          {/* Business Dashboard Direct Link (If Authenticated Business Owner) */}
+          {isAuthenticated && isBusinessOwner && (
+            <button
+              onClick={() => navigateTo('business_dashboard')}
+              className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer mb-2.5 ${
+                currentTab === 'business_dashboard'
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
+                  : 'bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-400'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Store className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <span className="font-bold text-xs block leading-tight">Business Dashboard</span>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400">
+                    🏢 Merchant Profile Active
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+            </button>
+          )}
+
+          {/* User Dashboard Direct Link (If Authenticated Shopper) */}
+          {isAuthenticated && !isBusinessOwner && (
             <button
               onClick={() => navigateTo('user_dashboard')}
               className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer mb-2.5 ${
@@ -208,6 +234,18 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
           >
             <Compass className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>Discovery Home</span>
+          </button>
+
+          <button
+            onClick={() => navigateTo('following')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-colors cursor-pointer ${
+              currentTab === 'following'
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold'
+                : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Following Feed (Deals & Drops)</span>
           </button>
 
           <button
@@ -425,17 +463,21 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
             </div>
           )}
 
-          {currentRole === 'admin' ? (
+          {currentRole === 'admin' || currentRole === 'super_admin' ? (
             <button
               onClick={() => navigateTo('admin_dashboard')}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold transition-colors cursor-pointer ${
                 currentTab === 'admin_dashboard'
-                  ? 'bg-rose-700 text-white'
+                  ? currentRole === 'super_admin'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-rose-700 text-white'
+                  : currentRole === 'super_admin'
+                  ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 hover:bg-amber-100'
                   : 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 hover:bg-rose-100'
               }`}
             >
-              <ShieldCheck className="w-4 h-4 shrink-0" />
-              <span>Admin Desk</span>
+              <ShieldCheck className="w-4 h-4 shrink-0 text-amber-500" />
+              <span>{currentRole === 'super_admin' ? 'Super Admin Desk (Root)' : 'Admin Desk'}</span>
             </button>
           ) : onOpenAdminGate ? (
             <button

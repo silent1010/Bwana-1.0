@@ -91,7 +91,8 @@ describe('Sidebar Drawer & Navbar Search Bar Isolation', () => {
       </CartProvider>
     );
 
-    expect(screen.getByText('Bwana Menu')).toBeDefined();
+    expect(screen.getByText('Bwana')).toBeDefined();
+    expect(screen.getByText('Discovery Channels')).toBeDefined();
     expect(screen.getByText('Discovery Home')).toBeDefined();
     expect(screen.getByText('Businesses Directory')).toBeDefined();
 

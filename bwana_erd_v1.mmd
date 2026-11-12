@@ -1,0 +1,52 @@
+erDiagram
+    countries ||--o{ administrative_areas : "divides into"
+    countries ||--o{ locations : "contains"
+    administrative_areas ||--o{ administrative_areas : "parent_to"
+    administrative_areas ||--o{ locations : "contains"
+
+    users ||--o{ auth_identities : "has"
+    users ||--o{ user_roles : "assigned"
+    roles ||--o{ user_roles : "groups"
+    roles ||--o{ role_permissions : "grants"
+    permissions ||--o{ role_permissions : "defined_in"
+
+    users ||--o{ business_members : "participates_in"
+    businesses ||--o{ business_members : "staffed_by"
+    users ||--o{ businesses : "created_by"
+
+    categories ||--o{ categories : "sub_category_of"
+    categories ||--o{ businesses : "classifies_primary"
+    categories ||--o{ business_categories : "classifies_secondary"
+    businesses ||--o{ business_categories : "tagged_with"
+
+    businesses ||--o{ business_locations : "operates_branches"
+    locations ||--o{ business_locations : "hosts"
+
+    business_locations ||--o{ business_contact_channels : "reaches_at"
+    businesses ||--o{ business_contact_channels : "owns"
+
+    businesses ||--o{ catalog_items : "sells"
+    business_locations ||--o{ catalog_items : "stocks_at"
+    catalog_items ||--o{ catalog_item_media : "showcases"
+
+    businesses ||--o{ reviews : "reviewed_in"
+    business_locations ||--o{ reviews : "experienced_at"
+    users ||--o{ reviews : "authored_by"
+    reviews ||--o| review_responses : "replied_with"
+
+    businesses ||--o{ promotions : "offers"
+    business_locations ||--o{ promotions : "valid_at"
+
+    businesses ||--o{ business_verification_requests : "requests_verification"
+    users ||--o{ business_verification_requests : "submitted_by"
+    business_verification_requests ||--o{ verification_documents : "supported_by"
+    businesses ||--o{ business_claims : "claimed_in"
+
+    users ||--o| professionals : "registered_as"
+    professionals ||--o{ professional_skills : "excels_at"
+    professionals ||--o{ professional_portfolio : "exhibits"
+
+    businesses ||--o{ events : "sponsors_hosts"
+    businesses ||--o{ opportunities : "publishes"
+    opportunities ||--o{ opportunity_applications : "receives"
+    users ||--o{ audit_logs : "records_actor"

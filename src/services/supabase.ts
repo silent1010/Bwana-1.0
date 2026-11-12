@@ -187,3 +187,29 @@ export async function insertNotificationIntoSupabase(notif: BwanaNotification): 
     return false;
   }
 }
+
+// PostGIS Geodesic Spatial Proximity Query via RPC
+export async function queryNearbyBusinessesPostGis(
+  userLat: number,
+  userLng: number,
+  radiusMeters: number = 5000
+) {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase.rpc('get_nearby_businesses', {
+      user_lat: userLat,
+      user_lng: userLng,
+      radius_meters: radiusMeters,
+      limit_count: 20,
+    });
+    if (error) {
+      console.warn('PostGIS get_nearby_businesses notice:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.warn('PostGIS query error:', err);
+    return [];
+  }
+}
+

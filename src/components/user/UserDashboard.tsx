@@ -20,7 +20,8 @@ import {
   ExternalLink,
   Shield,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Store
 } from 'lucide-react';
 import { UserAccount, Business, BusinessReview } from '../../types';
 
@@ -69,6 +70,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       (r.userId === currentUser?.id ||
        r.userId === currentUserEmail ||
        r.userName === displayName)
+  );
+
+  // Check if this account owns any registered business
+  const ownedBusiness = (businesses || []).find(
+    (b) =>
+      (b.email && b.email.toLowerCase() === displayEmail.toLowerCase()) ||
+      (b.claimedByUserId && b.claimedByUserId.toLowerCase() === displayEmail.toLowerCase())
   );
 
   return (
@@ -129,6 +137,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   <span>{displayPhone}</span>
                 </span>
                 <span className="text-stone-500">·</span>
+                <span className="font-mono text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/80" title="Your unique, non-colliding Bwana Account Number">
+                  Account: {currentUser?.accountNumber || 'BWN-48920147'}
+                </span>
+                <span className="text-stone-500">·</span>
                 <span className="text-stone-400 capitalize">
                   Auth: {provider}
                 </span>
@@ -174,6 +186,39 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Merchant Profile Direct Switch Card */}
+      {ownedBusiness && (
+        <div className="p-4 sm:p-5 bg-emerald-50 dark:bg-emerald-950/70 border-2 border-emerald-400 dark:border-emerald-600 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Store className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-200 px-2 py-0.5 rounded font-bold">
+                  Merchant Profile Active
+                </span>
+                <span className="text-xs text-stone-500 dark:text-stone-400">· {ownedBusiness.city}, Zambia</span>
+              </div>
+              <h3 className="font-bold text-base text-stone-900 dark:text-white font-display mt-0.5">
+                Looking for your business profile? Manage {ownedBusiness.name}
+              </h3>
+              <p className="text-xs text-stone-600 dark:text-stone-300">
+                Update catalog items, prices, flash deals, and view visitor analytics in your merchant dashboard.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onNavigateTab('business_dashboard')}
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs shrink-0"
+          >
+            <span>Open Business Profile</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* 2. Beginner-Friendly Verification Explainer Banner */}
       {!isVerified ? (

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { BusinessProduct } from '../types';
+import { BusinessProduct, ProductVariant } from '../types';
 import {
   subscribeToOrders,
   createOrderInFirestore,
@@ -8,6 +8,7 @@ import {
 
 export interface CartItem {
   product: BusinessProduct;
+  selectedVariant?: ProductVariant;
   businessId: string;
   businessName: string;
   quantity: number;
@@ -40,9 +41,9 @@ export interface Order {
 
 interface CartContextType {
   items: CartItem[];
-  addToCart: (product: BusinessProduct, businessName: string, quantity?: number) => void;
-  removeFromCart: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  addToCart: (product: BusinessProduct, businessName: string, quantity?: number, selectedVariant?: ProductVariant) => void;
+  removeFromCart: (productId: string, variantId?: string) => void;
+  updateQuantity: (productId: string, quantity: number, variantId?: string) => void;
   clearCart: () => void;
   totalItems: number;
   subtotal: number;
@@ -120,12 +121,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
   }, [walletBalance]);
 
-  const addToCart = (product: BusinessProduct, businessName: string, quantity = 1) => {
+  const addToCart = (product: BusinessProduct, businessName: string, quantity = 1, selectedVariant?: ProductVariant) => {
     setItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      const existing = prev.find(
+        (item) => item.product.id === product.id && item.selectedVariant?.id === selectedVariant?.id
+      );
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id
+          item.product.id === product.id && item.selectedVariant?.id === selectedVariant?.id
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );
@@ -134,6 +137,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...prev,
         {
           product,
+          selectedVariant,
           businessId: product.businessId,
           businessName,
           quantity,
@@ -142,19 +146,28 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setItems((prev) => prev.filter((item) => item.product.id !== productId));
+  const removeFromCart = (productId: string, variantId?: string) => {
+    setItems((prev) =>
+      prev.filter((item) =>
+        variantId
+          ? !(item.product.id === productId && item.selectedVariant?.id === variantId)
+          : item.product.id !== productId
+      )
+    );
   };
 
-  const updateQuantity = (productId: string, quantity: number) => {
+  const updateQuantity = (productId: string, quantity: number, variantId?: string) => {
     if (quantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, variantId);
       return;
     }
     setItems((prev) =>
-      prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item
-      )
+      prev.map((item) => {
+        const matches = variantId
+          ? item.product.id === productId && item.selectedVariant?.id === variantId
+          : item.product.id === productId;
+        return matches ? { ...item, quantity } : item;
+      })
     );
   };
 
@@ -163,7 +176,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const subtotal = items.reduce((sum, item) => {
+    const unitPrice = item.product.price + (item.selectedVariant?.priceAdjustment || 0);
+    return sum + unitPrice * item.quantity;
+  }, 0);
   const deliveryFee = items.length > 0 ? 35 : 0; // Flat K35 courier delivery in Kitwe/Lusaka
   const bwanaSplitFee = Math.round(subtotal * 0.01 * 100) / 100; // 1% auto-split
   const total = subtotal + deliveryFee;

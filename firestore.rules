@@ -10,9 +10,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Only m.mumba8@gmail.com has Super Admin privileges with all platform rights
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == 'm.mumba8@gmail.com';
+    }
+
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'm.mumba8@gmail.com' ||
+        isSuperAdmin() ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
@@ -22,17 +27,17 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Admins collection
+    // Admins collection - Only Super Admin (m.mumba8@gmail.com) can manage administrative access
     match /admins/{adminId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isSuperAdmin();
     }
 
-    // Registered users profiles and verification records
+    // Registered users profiles and verification records (Super Admin has full rights)
     match /users/{userId} {
       allow read: if true;
       allow create, update: if isValidId(userId);
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
     }
 
     // Geographic datasets (Read globally, write by Admin)

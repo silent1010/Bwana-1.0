@@ -22,6 +22,7 @@ export type UserRole =
   | 'business_staff'
   | 'moderator'
   | 'admin'
+  | 'super_admin'
   | 'bwana_staff';
 
 export type StaffPermissionTier = 'owner' | 'manager' | 'staff';
@@ -79,6 +80,13 @@ export interface UserCapabilities {
   manageCategoriesAndLocations: boolean;
   managePlatformConfig: boolean;
   auditSystemActivity: boolean;
+
+  // Super Administrator exclusive capabilities (Reserved for m.mumba8@gmail.com)
+  superAdminRootAccess: boolean;
+  manageDatabaseSeeder: boolean;
+  manageRelationalWorkbench: boolean;
+  overrideAnyVerification: boolean;
+  manageAdminRoles: boolean;
 }
 
 export interface SystemUser {
@@ -90,6 +98,7 @@ export interface SystemUser {
   description: string;
   avatarColor: string;
   badge: string;
+  isSuperAdmin?: boolean;
   staffTier?: StaffPermissionTier;
   permissions?: StaffPermissionConfig;
   businessId?: string;
@@ -121,6 +130,8 @@ export interface UserAccount {
   role: UserRole;
   isNrcVerified: boolean;
   nrcVerification?: UserNrcVerification;
+  accountNumber?: string; // Standard Zambian Commercial Format: BWN-xxxxxxxx
+  preferredOtpChannel?: 'whatsapp' | 'sms' | 'email';
   createdAt: string;
 }
 
@@ -207,18 +218,32 @@ export interface Category {
   count: number;
 }
 
+export interface ProductVariant {
+  id: string;
+  name: string; // e.g. "500g Pack", "1kg Bag", "Size L - Emerald"
+  sku?: string;
+  priceAdjustment: number; // e.g. +20 or 0
+  stock: number;
+  attributes?: Record<string, string>; // e.g. { size: '1kg', color: 'Green' }
+}
+
 export interface BusinessProduct {
   id: string;
   businessId: string;
   name: string;
   description?: string;
   price: number;
+  compareAtPrice?: number;
   priceType: PriceType;
   priceMax?: number;
   currency: string; // 'ZMW'
   imageUrl?: string;
   inStock: boolean;
+  stockQuantity?: number;
+  lowStockThreshold?: number;
   category?: string;
+  variants?: ProductVariant[];
+  sku?: string;
 }
 
 export interface BusinessService {
@@ -547,8 +572,34 @@ export interface ScoutOnboardingRecord {
   createdAt: string;
 }
 
+export interface BusinessFollow {
+  id: string;
+  userId: string;
+  businessId: string;
+  followedAt: string;
+}
+
+export interface BusinessPost {
+  id: string;
+  businessId: string;
+  businessName: string;
+  businessLogo?: string;
+  businessCity?: string;
+  title: string;
+  content: string;
+  type: 'announcement' | 'promotion' | 'new_product' | 'flash_sale';
+  imageUrl?: string;
+  discountCode?: string;
+  discountPercentage?: number;
+  productId?: string;
+  productPrice?: number;
+  createdAt: string;
+  likesCount?: number;
+}
+
 export interface CartItem {
   product: BusinessProduct;
+  selectedVariant?: ProductVariant;
   businessId: string;
   businessName: string;
   quantity: number;

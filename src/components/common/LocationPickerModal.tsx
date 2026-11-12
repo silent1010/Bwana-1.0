@@ -69,14 +69,60 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
   const activeDistrictId = selectedDistrictId || districtsInProvince[0]?.id;
   const citiesInDistrict = activeDistrictId ? getCitiesByDistrict(activeDistrictId) : [];
 
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'locating' | 'success' | 'denied' | 'unsupported'>('idle');
+  const [gpsMessage, setGpsMessage] = useState<string | null>(null);
+
   const handleUseGps = () => {
-    setGpsSimulated(true);
-    // Find Kitwe as default primary market coordinate or location matching Kitwe
-    const kitwe = HIERARCHICAL_LOCATIONS.find((l) => l.city.toLowerCase() === 'kitwe') || HIERARCHICAL_LOCATIONS[0];
-    onSelectLocation(kitwe);
-    setTimeout(() => {
-      onClose();
-    }, 400);
+    if (!('geolocation' in navigator)) {
+      setGpsStatus('unsupported');
+      setGpsMessage('Geolocation is not supported by your browser. Please select your city below.');
+      return;
+    }
+
+    setGpsStatus('locating');
+    setGpsMessage('Detecting your location...');
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setGpsStatus('success');
+        setGpsSimulated(true);
+
+        // Find closest Zambian location by spherical distance
+        let closestLoc = HIERARCHICAL_LOCATIONS[0];
+        let minDistance = Infinity;
+
+        for (const loc of HIERARCHICAL_LOCATIONS) {
+          const d = Math.hypot(
+            loc.coordinates.latitude - latitude,
+            loc.coordinates.longitude - longitude
+          );
+          if (d < minDistance) {
+            minDistance = d;
+            closestLoc = loc;
+          }
+        }
+
+        setGpsMessage(`Location locked: ${closestLoc.city} (${closestLoc.province})`);
+        onSelectLocation(closestLoc);
+        setTimeout(() => {
+          onClose();
+        }, 600);
+      },
+      (err) => {
+        console.warn('GPS location request notice:', err.message);
+        setGpsStatus('denied');
+        // Graceful fallback to user's nearest major commercial center
+        const defaultCity = HIERARCHICAL_LOCATIONS.find((l) => l.city.toLowerCase() === 'kitwe') || HIERARCHICAL_LOCATIONS[0];
+        setGpsMessage(
+          err.code === 1
+            ? 'GPS access was not allowed. Using Kitwe Central as your default — tap any town below to change.'
+            : 'Could not resolve exact GPS. Using Kitwe Central as your default.'
+        );
+        onSelectLocation(defaultCity);
+      },
+      { timeout: 7000, enableHighAccuracy: true, maximumAge: 300000 }
+    );
   };
 
   const handleSelectCity = (city: CityTown) => {
@@ -198,25 +244,33 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
         <div className="p-3 bg-stone-50/80 border-b border-stone-100">
           <button
             onClick={handleUseGps}
-            className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white border border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50/40 text-emerald-800 transition-colors shadow-2xs group cursor-pointer"
+            disabled={gpsStatus === 'locating'}
+            className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white border border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50/40 text-emerald-800 transition-colors shadow-2xs group cursor-pointer disabled:opacity-60"
           >
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Navigation className="w-3.5 h-3.5" />
+                <Navigation className={`w-3.5 h-3.5 ${gpsStatus === 'locating' ? 'animate-spin' : ''}`} />
               </div>
               <div className="text-left">
-                <div className="text-xs font-semibold">Device GPS Auto-Locate</div>
+                <div className="text-xs font-semibold">
+                  {gpsStatus === 'locating' ? 'Detecting your GPS location...' : 'Device GPS Auto-Locate'}
+                </div>
                 <div className="text-[11px] text-stone-500">
-                  {gpsSimulated
-                    ? 'Locked: Kitwe (-12.8024, 28.2132)'
+                  {gpsMessage
+                    ? gpsMessage
                     : 'Resolve closest provincial district & coordinates'}
                 </div>
               </div>
             </div>
             <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-              Detect
+              {gpsStatus === 'locating' ? 'Checking...' : gpsStatus === 'success' ? 'Locked ✓' : 'Detect'}
             </span>
           </button>
+          {gpsStatus === 'denied' && (
+            <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 leading-normal">
+              💡 <strong>Tip:</strong> If you prefer automatic distance calculations, enable location permissions in your browser or select your nearest town from the list below.
+            </div>
+          )}
         </div>
 
         {/* Search */}

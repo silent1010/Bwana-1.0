@@ -12,14 +12,19 @@ import {
   Cpu,
   FileCode,
   Shield,
-  MapPin
+  MapPin,
+  Cloud,
+  Network,
+  Activity,
+  Globe
 } from 'lucide-react';
 import { LOCATIONS, INITIAL_BUSINESSES, calculateDistanceKm } from '../../data/mockData';
 import { ServicesSpecView } from './ServicesSpecView';
 
 export const EngineeringSpec: React.FC = () => {
   const [copied, setCopied] = useState(false);
-  const [selectedSpecTab, setSelectedSpecTab] = useState<'architecture' | 'services_spec' | 'schema' | 'spatial_sandbox' | 'api_gateway'>('services_spec');
+  const [copiedTf, setCopiedTf] = useState(false);
+  const [selectedSpecTab, setSelectedSpecTab] = useState<'architecture' | 'services_spec' | 'schema' | 'spatial_sandbox' | 'api_gateway' | 'aws_alb'>('aws_alb');
 
   // Interactive Spatial Query Sandbox state
   const [originCity, setOriginCity] = useState('loc-kitwe');
@@ -383,6 +388,18 @@ CREATE INDEX idx_audit_created ON audit_logs(created_at DESC);`;
         >
           <Server className="w-3.5 h-3.5" />
           <span>API Gateway Endpoints Specification</span>
+        </button>
+
+        <button
+          onClick={() => setSelectedSpecTab('aws_alb')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+            selectedSpecTab === 'aws_alb'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+          }`}
+        >
+          <Cloud className="w-3.5 h-3.5 text-amber-300" />
+          <span>AWS Load Balancer & High Availability (ALB + CloudFront)</span>
         </button>
       </div>
 
@@ -754,6 +771,245 @@ CREATE INDEX idx_audit_created ON audit_logs(created_at DESC);`;
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* AWS LOAD BALANCER & HIGH AVAILABILITY TAB */}
+      {selectedSpecTab === 'aws_alb' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Header Banner */}
+          <div className="p-6 bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 border border-stone-800 rounded-2xl text-white shadow-lg space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-mono text-amber-400">
+                  <Cloud className="w-4 h-4" />
+                  <span>AWS PRODUCTION INFRASTRUCTURE</span>
+                  <span>·</span>
+                  <span>af-south-1 (Cape Town) + Global Edge</span>
+                </div>
+                <h3 className="text-xl font-bold font-display text-white mt-1">
+                  AWS Application Load Balancer (ALB) & CloudFront CDN
+                </h3>
+                <p className="text-xs text-stone-300 max-w-3xl mt-1 leading-relaxed">
+                  Enterprise high-availability architecture fronting multi-AZ Amazon ECS Fargate serverless tasks. Features automated health check monitoring, TLS 1.3 termination, Southern Africa edge acceleration, and Terraform / OpenTofu Infrastructure-as-Code.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`terraform init\nterraform plan -out=tfplan\nterraform apply tfplan`);
+                  setCopiedTf(true);
+                  setTimeout(() => setCopiedTf(false), 2000);
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 font-semibold rounded-xl text-xs transition-colors shrink-0 cursor-pointer shadow-xs"
+              >
+                {copiedTf ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedTf ? 'Command Copied!' : 'Copy Terraform CLI'}</span>
+              </button>
+            </div>
+
+            {/* Architecture Metrics Strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-stone-800/80 text-xs">
+              <div className="p-3 bg-stone-950/60 rounded-xl border border-stone-800">
+                <div className="text-stone-400">Load Balancer Type</div>
+                <div className="text-amber-400 font-bold text-sm mt-0.5 font-mono">AWS ALB (Layer 7)</div>
+                <div className="text-[11px] text-stone-400 mt-1">Dual-Stack IPv4/IPv6</div>
+              </div>
+              <div className="p-3 bg-stone-950/60 rounded-xl border border-stone-800">
+                <div className="text-stone-400">Target Group Protocol</div>
+                <div className="text-emerald-400 font-bold text-sm mt-0.5 font-mono">IP / Fargate (3000)</div>
+                <div className="text-[11px] text-stone-400 mt-1">Health Check: /api/health</div>
+              </div>
+              <div className="p-3 bg-stone-950/60 rounded-xl border border-stone-800">
+                <div className="text-stone-400">Edge Acceleration</div>
+                <div className="text-cyan-400 font-bold text-sm mt-0.5 font-mono">CloudFront CDN</div>
+                <div className="text-[11px] text-stone-400 mt-1">JNB & CPT African PoPs</div>
+              </div>
+              <div className="p-3 bg-stone-950/60 rounded-xl border border-stone-800">
+                <div className="text-stone-400">Auto-Scaling Policy</div>
+                <div className="text-purple-400 font-bold text-sm mt-0.5 font-mono">2 to 20 Tasks</div>
+                <div className="text-[11px] text-stone-400 mt-1">Target CPU &lt; 70%</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Routing & Health Topology Simulator */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Visual Topology Diagram */}
+            <div className="lg:col-span-2 p-6 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2">
+                    <Network className="w-4 h-4 text-emerald-600" />
+                    <span>Real-Time Traffic Routing & Health Check Flow</span>
+                  </h4>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    How an incoming request from Lusaka travels through Route 53, CloudFront edge, ALB listeners, and Fargate targets.
+                  </p>
+                </div>
+                <span className="text-[11px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded">
+                  ALB Status: Active
+                </span>
+              </div>
+
+              {/* ASCII Flow Graphic */}
+              <div className="bg-stone-950 text-stone-100 p-5 rounded-xl font-mono text-xs overflow-x-auto border border-stone-800 leading-relaxed">
+                <div className="text-amber-400 font-bold mb-2">1. CLIENT REQUEST (Zambia & SADC)</div>
+                <div className="pl-4 text-stone-400">
+                  User in Lusaka / Kitwe ──&gt; DNS query: api.bwana.africa (Amazon Route 53)
+                </div>
+                <div className="pl-24 text-stone-600">│</div>
+                <div className="pl-24 text-stone-600">▼</div>
+
+                <div className="text-cyan-400 font-bold mb-2">2. AMAZON CLOUDFRONT CDN (Edge PoPs)</div>
+                <div className="pl-4 text-stone-300">
+                  • Johannesburg / Cape Town Edge PoP (Sub-20ms latency)<br />
+                  • Static files &amp; product photos served from Edge Cache<br />
+                  • Dynamic API queries (/api/*) forwarded over AWS Global Backbone
+                </div>
+                <div className="pl-24 text-stone-600">│ HTTPS (TLS 1.3)</div>
+                <div className="pl-24 text-stone-600">▼</div>
+
+                <div className="text-emerald-400 font-bold mb-2">3. APPLICATION LOAD BALANCER (af-south-1)</div>
+                <div className="pl-4 text-stone-300">
+                  • Public Subnets across Availability Zones (af-south-1a &amp; af-south-1b)<br />
+                  • Ingress Rule: Port 443 with ACM SSL Certificate<br />
+                  • Target Group: bwana-app-tg (Protocol: HTTP/3000, Type: IP)<br />
+                  • Health Probe: GET /api/health (Interval: 15s, Timeout: 5s, 200 OK)
+                </div>
+                <div className="pl-24 text-stone-600">│ Least Connections / Round-Robin</div>
+                <div className="pl-24 text-stone-600">▼</div>
+
+                <div className="text-purple-400 font-bold mb-2">4. ECS FARGATE CONTAINER TASKS (Private Subnets)</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-4 text-stone-300 mt-2">
+                  <div className="p-2.5 bg-stone-900 border border-stone-800 rounded">
+                    <span className="text-emerald-400 font-bold">Task 1 (af-south-1a):</span> Healthy<br />
+                    IP: 10.0.10.42:3000 · CPU: 24% · Latency: 12ms
+                  </div>
+                  <div className="p-2.5 bg-stone-900 border border-stone-800 rounded">
+                    <span className="text-emerald-400 font-bold">Task 2 (af-south-1b):</span> Healthy<br />
+                    IP: 10.0.20.89:3000 · CPU: 28% · Latency: 15ms
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Target Health Check & Probe Details */}
+            <div className="p-6 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xs space-y-4">
+              <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-amber-500" />
+                <span>Target Group Health Status</span>
+              </h4>
+
+              <div className="space-y-3 text-xs">
+                <div className="p-3 bg-stone-50 dark:bg-stone-950 rounded-xl border border-stone-200 dark:border-stone-800 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-stone-900 dark:text-stone-100">Probe Endpoint</span>
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400">GET /api/health</span>
+                  </div>
+                  <div className="text-stone-500 text-[11px]">Returns HTTP 200 with JSON payload including uptime and instance ID.</div>
+                </div>
+
+                <div className="p-3 bg-stone-50 dark:bg-stone-950 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2">
+                  <div className="font-semibold text-stone-900 dark:text-stone-100">Live Target Pool (2/2 Healthy)</div>
+                  
+                  <div className="space-y-1.5 font-mono text-[11px]">
+                    <div className="flex items-center justify-between p-2 bg-white dark:bg-stone-900 rounded border border-emerald-300 dark:border-emerald-800/80">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="text-stone-800 dark:text-stone-200">task-af-south-1a</span>
+                      </div>
+                      <span className="text-emerald-600 font-bold">200 OK (14ms)</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 bg-white dark:bg-stone-900 rounded border border-emerald-300 dark:border-emerald-800/80">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="text-stone-800 dark:text-stone-200">task-af-south-1b</span>
+                      </div>
+                      <span className="text-emerald-600 font-bold">200 OK (16ms)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>Zero-Downtime Deployment</span>
+                  </div>
+                  <div className="text-[11px] leading-relaxed">
+                    ALB uses a 30-second deregistration delay. During updates, old tasks finish in-flight requests while new Fargate tasks undergo health validation before receiving traffic.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Terraform File Hierarchy & Quick Copy */}
+          <div className="p-6 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2">
+                  <FileCode className="w-4 h-4 text-emerald-600" />
+                  <span>Generated Terraform / OpenTofu Modules</span>
+                </h4>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Production files ready in your project repository for automated CI/CD deployment.
+                </p>
+              </div>
+              <span className="text-xs font-mono text-stone-500">4 modules generated</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-stone-50 dark:bg-stone-950 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="font-mono text-xs font-bold text-stone-900 dark:text-stone-100">
+                    terraform/modules/alb/main.tf
+                  </div>
+                  <span className="text-[11px] font-mono text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded">ALB &amp; Listeners</span>
+                </div>
+                <p className="text-xs text-stone-500">
+                  Defines the dual-stack Application Load Balancer, HTTP-to-HTTPS redirect listener, TLS 1.3 listener, security groups, and IP-type target group.
+                </p>
+              </div>
+
+              <div className="p-4 bg-stone-50 dark:bg-stone-950 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="font-mono text-xs font-bold text-stone-900 dark:text-stone-100">
+                    terraform/modules/cloudfront/main.tf
+                  </div>
+                  <span className="text-[11px] font-mono text-cyan-600 bg-cyan-50 dark:bg-cyan-950 px-2 py-0.5 rounded">CDN Edge</span>
+                </div>
+                <p className="text-xs text-stone-500">
+                  CloudFront distribution configured with Southern African edge locations (Johannesburg &amp; Cape Town), custom origin headers, and aggressive static asset caching.
+                </p>
+              </div>
+
+              <div className="p-4 bg-stone-50 dark:bg-stone-950 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="font-mono text-xs font-bold text-stone-900 dark:text-stone-100">
+                    terraform/modules/ecs_service/main.tf
+                  </div>
+                  <span className="text-[11px] font-mono text-purple-600 bg-purple-50 dark:bg-purple-950 px-2 py-0.5 rounded">Fargate Compute</span>
+                </div>
+                <p className="text-xs text-stone-500">
+                  ECS Cluster, Task Definition with IAM execution role, multi-AZ service registration with ALB target group, and target tracking auto-scaling.
+                </p>
+              </div>
+
+              <div className="p-4 bg-stone-50 dark:bg-stone-950 rounded-xl border border-stone-200 dark:border-stone-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="font-mono text-xs font-bold text-stone-900 dark:text-stone-100">
+                    terraform/environments/production/main.tf
+                  </div>
+                  <span className="text-[11px] font-mono text-amber-600 bg-amber-50 dark:bg-amber-950 px-2 py-0.5 rounded">Root Composition</span>
+                </div>
+                <p className="text-xs text-stone-500">
+                  VPC with public and private subnets across af-south-1a and af-south-1b, wiring the ALB, CloudFront CDN, and ECS Fargate compute layers together.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

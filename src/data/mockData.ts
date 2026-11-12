@@ -1883,14 +1883,15 @@ export function calculateDistanceKm(
 
 export const SYSTEM_USERS: SystemUser[] = [
   {
-    id: 'usr-admin-01',
-    name: 'Mwape Chileshe',
-    email: 'admin@bwana.africa',
-    role: 'admin',
-    roleLabel: 'F. Administrator',
-    description: 'Full platform administration: manage users, businesses, categories, locations, reports, platform configuration, analytics, permissions, and audit logs.',
+    id: 'usr-super-admin-01',
+    name: 'M. Mumba',
+    email: 'm.mumba8@gmail.com',
+    role: 'super_admin',
+    roleLabel: 'F. Super Administrator',
+    description: 'Exclusive Super Administrator with ALL privileges granted across the Bwana platform: root security clearance, database management, cloud infrastructure, audit trails, and tenant governance.',
     avatarColor: 'bg-rose-600',
-    badge: 'ADMIN',
+    badge: 'SUPER ADMIN',
+    isSuperAdmin: true,
   },
   {
     id: 'usr-mod-01',

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bwana-config
+  namespace: default
+  labels:
+    app: bwana
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  VITE_FIREBASE_PROJECT_ID: "waking-continuity-fvk22"
+  VITE_APP_NAME: "Bwana Platform"
+  VITE_DEFAULT_COUNTRY: "Zambia"
+  VITE_DEFAULT_CURRENCY: "ZMW"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bwana-secrets
+  namespace: default
+  labels:
+    app: bwana
+type: Opaque
+stringData:
+  # Base64 encoded or string template for production cluster deployment
+  FIREBASE_API_KEY: "AIzaSyBuIKGCEYwJKsEUJDR0fpypAmiQZgRRbFw"
+  JWT_SECRET: "bwana-prod-secure-token-sign-key-2026"

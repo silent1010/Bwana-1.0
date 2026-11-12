@@ -125,9 +125,9 @@ describe('AdminGateModal Authentication & Authorization Flow', () => {
 
     await waitFor(() => {
       expect(mockOnAdminAuthSuccess).toHaveBeenCalledWith(
-        'admin@bwana.africa',
-        'admin',
-        'Bwana Platform Administrator'
+        'm.mumba8@gmail.com',
+        'super_admin',
+        'Super Administrator (M. Mumba)'
       );
       expect(mockOnClose).toHaveBeenCalled();
     });
@@ -172,9 +172,9 @@ describe('AdminGateModal Authentication & Authorization Flow', () => {
     await user.click(fastTrackBtn);
 
     expect(mockOnAdminAuthSuccess).toHaveBeenCalledWith(
-      'admin@bwana.africa',
-      'admin',
-      'Bwana Platform Administrator'
+      'm.mumba8@gmail.com',
+      'super_admin',
+      'Super Administrator (M. Mumba)'
     );
     expect(mockOnClose).toHaveBeenCalled();
   });
@@ -208,12 +208,12 @@ describe('Integration Test: Access Control & Navigation to Admin Dashboard', () 
             <div data-testid="discover-view">Public Consumer Discovery Mode</div>
           )}
 
-          {currentTab === 'admin_dashboard' && currentRole === 'admin' ? (
+          {currentTab === 'admin_dashboard' && (currentRole === 'admin' || currentRole === 'super_admin') ? (
             <div data-testid="admin-dashboard-view">
               <h2>PACRA & ZRA Statutory Verification Desk</h2>
               <p>Platform Management Active</p>
             </div>
-          ) : currentTab === 'admin_dashboard' && currentRole !== 'admin' ? (
+          ) : currentTab === 'admin_dashboard' && currentRole !== 'admin' && currentRole !== 'super_admin' ? (
             <div data-testid="unauthorized-view">403 Forbidden - Admin Privilege Required</div>
           ) : null}
         </main>
@@ -272,9 +272,9 @@ describe('Integration Test: Access Control & Navigation to Admin Dashboard', () 
 
     // 4. Verify privilege elevation and view transition
     await waitFor(() => {
-      expect(screen.getByTestId('current-role')).toHaveTextContent('admin');
+      expect(screen.getByTestId('current-role')).toHaveTextContent('super_admin');
       expect(screen.getByTestId('current-tab')).toHaveTextContent('admin_dashboard');
-      expect(screen.getByTestId('user-email')).toHaveTextContent('admin@bwana.africa');
+      expect(screen.getByTestId('user-email')).toHaveTextContent('m.mumba8@gmail.com');
       expect(screen.getByTestId('admin-dashboard-view')).toBeInTheDocument();
       expect(screen.queryByTestId('discover-view')).not.toBeInTheDocument();
     });

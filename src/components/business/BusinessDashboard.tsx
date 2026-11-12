@@ -26,12 +26,30 @@ import {
   User,
   CheckCheck,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  Volume2,
+  VolumeX,
+  BellRing,
+  Users,
+  Radio,
+  Sparkles
 } from 'lucide-react';
-import { Business, BusinessProduct, BusinessService, BusinessPromotion, BusinessReview, PriceType, ChatConversation, ChatMessage } from '../../types';
+import {
+  Business,
+  BusinessProduct,
+  BusinessService,
+  BusinessPromotion,
+  BusinessReview,
+  PriceType,
+  ChatConversation,
+  ChatMessage,
+  ProductVariant
+} from '../../types';
 import { EngagementAnalyticsChart } from './EngagementAnalyticsChart';
 import { BusinessInsightsView } from './BusinessInsightsView';
 import { useCart, Order } from '../../context/CartContext';
+import { playNewOrderChime } from '../../utils/audioAlerts';
+import { createBusinessPost } from '../../services/followService';
 import {
   subscribeToBusinessConversations,
   subscribeToMessages,
@@ -56,11 +74,32 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
   onRespondToReview,
   onSignOut,
 }) => {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'orders' | 'products' | 'services' | 'promotions' | 'verification' | 'reviews' | 'settings'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'orders' | 'products' | 'services' | 'promotions' | 'broadcasts' | 'verification' | 'reviews' | 'settings'>('orders');
   const { orders, updateOrderStatus } = useCart();
   const [replyingReviewId, setReplyingReviewId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [responderName, setResponderName] = useState(`${business.name} Management`);
+
+  // Audio Alerts & Kanban Orders state
+  const [soundAlertsEnabled, setSoundAlertsEnabled] = useState(true);
+  const [ordersViewMode, setOrdersViewMode] = useState<'kanban' | 'table'>('kanban');
+
+  // Broadcasts & Followers state
+  const [showBroadcastForm, setShowBroadcastForm] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastContent, setBroadcastContent] = useState('');
+  const [broadcastType, setBroadcastType] = useState<'announcement' | 'promotion' | 'new_product' | 'flash_sale'>('promotion');
+  const [broadcastDiscountCode, setBroadcastDiscountCode] = useState('');
+  const [broadcastDiscountPct, setBroadcastDiscountPct] = useState<number>(15);
+  const [broadcastSuccess, setBroadcastSuccess] = useState(false);
+
+  // Product variants & stock state
+  const [productStock, setProductStock] = useState<number>(30);
+  const [productComparePrice, setProductComparePrice] = useState<string>('');
+  const [productVariantsList, setProductVariantsList] = useState<ProductVariant[]>([]);
+  const [newVariantName, setNewVariantName] = useState('');
+  const [newVariantPriceAdj, setNewVariantPriceAdj] = useState<number>(0);
+  const [newVariantStock, setNewVariantStock] = useState<number>(10);
 
   // Direct Customer Chats state
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
@@ -226,10 +265,14 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
       name: productName.trim(),
       description: productDesc.trim(),
       price: Number(productPrice),
+      compareAtPrice: productComparePrice ? Number(productComparePrice) : undefined,
       priceType: 'fixed',
       currency: 'ZMW',
-      inStock: true,
+      inStock: productStock > 0,
+      stockQuantity: Number(productStock),
+      lowStockThreshold: 5,
       category: productCategory,
+      variants: productVariantsList.length > 0 ? [...productVariantsList] : undefined,
     };
 
     const updated = {
@@ -239,7 +282,29 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
     onUpdateBusiness(updated);
     setProductName('');
     setProductDesc('');
+    setProductStock(30);
+    setProductComparePrice('');
+    setProductVariantsList([]);
     setShowAddProduct(false);
+  };
+
+  const handleBroadcastPost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!broadcastTitle.trim() || !broadcastContent.trim()) return;
+
+    createBusinessPost(business.id, business.name, business.logoUrl, business.city, {
+      title: broadcastTitle.trim(),
+      content: broadcastContent.trim(),
+      type: broadcastType,
+      discountCode: broadcastDiscountCode.trim() || undefined,
+      discountPercentage: broadcastDiscountPct ? Number(broadcastDiscountPct) : undefined,
+    });
+
+    setBroadcastSuccess(true);
+    setTimeout(() => setBroadcastSuccess(false), 3000);
+    setBroadcastTitle('');
+    setBroadcastContent('');
+    setBroadcastDiscountCode('');
   };
 
   const handleAddService = (e: React.FormEvent) => {
@@ -508,6 +573,21 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
             {business.promotions?.length || 0}
           </span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('broadcasts')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'broadcasts'
+              ? 'bg-emerald-600 text-white shadow-xs font-bold'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-800/80 hover:bg-stone-200 dark:hover:bg-stone-700'
+          }`}
+        >
+          <Radio className="w-3.5 h-3.5 text-amber-400" />
+          <span>Followers & Broadcasts</span>
+          <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+            New
+          </span>
+        </button>
         <button
           onClick={() => setActiveTab('verification')}
           className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
@@ -720,149 +800,574 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB CONTENT: Seller Orders & Invoices (Phase 1 Super App) */}
+      {/* TAB CONTENT: Seller Orders & Invoices (Live Kanban Board with Audio Alerts) */}
       {activeTab === 'orders' && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Header & Controls */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-stone-900 p-5 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xs">
             <div>
-              <h3 className="text-lg font-bold font-display text-stone-900">
-                Seller Orders & Tax Invoices
-              </h3>
-              <p className="text-xs text-stone-500">
-                Manage incoming customer orders, dispatch with Bwana Couriers, and download official invoices with 1% split.
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-lg font-bold font-display text-stone-900 dark:text-white">
+                  Live Merchant Order Board
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                  Real-Time Dispatch
+                </span>
+              </div>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+                Kanban fulfillment pipeline with instant sound alerts for incoming customer orders across Kitwe, Lusaka & Copperbelt.
               </p>
             </div>
-            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-800">
-              <span className="font-bold">1% Auto-Split:</span>
-              <span>Shop receives 99% payout, Bwana receives 1% platform fee.</span>
+
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              {/* Sound Alert Toggle */}
+              <button
+                type="button"
+                onClick={() => setSoundAlertsEnabled(!soundAlertsEnabled)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-colors cursor-pointer ${
+                  soundAlertsEnabled
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-stone-100 dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-500'
+                }`}
+                title="Toggle Web Audio sound alerts on new orders"
+              >
+                {soundAlertsEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                <span>{soundAlertsEnabled ? 'Sound Alerts: ON' : 'Muted'}</span>
+              </button>
+
+              {/* Test Chime Button */}
+              <button
+                type="button"
+                onClick={() => playNewOrderChime()}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 transition-colors cursor-pointer flex items-center gap-1"
+                title="Play test order chime"
+              >
+                <BellRing className="w-3.5 h-3.5 text-amber-500" />
+                <span>Test Chime</span>
+              </button>
+
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-stone-100 dark:bg-stone-800 p-1 rounded-xl border border-stone-200 dark:border-stone-700">
+                <button
+                  type="button"
+                  onClick={() => setOrdersViewMode('kanban')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                    ordersViewMode === 'kanban'
+                      ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-white font-bold shadow-xs'
+                      : 'text-stone-500 hover:text-stone-900 dark:hover:text-stone-200'
+                  }`}
+                >
+                  Kanban Board
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrdersViewMode('table')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                    ordersViewMode === 'table'
+                      ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-white font-bold shadow-xs'
+                      : 'text-stone-500 hover:text-stone-900 dark:hover:text-stone-200'
+                  }`}
+                >
+                  Table List
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Orders List */}
-          <div className="space-y-4">
-            {merchantOrders.map((ord) => (
-              <div
-                key={ord.id}
-                className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-4"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-stone-900">Order #{ord.id}</span>
-                      <span className="text-[11px] font-mono bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
-                        {ord.trackingNumber}
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                          ord.orderStatus === 'delivered'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : ord.orderStatus === 'in_transit'
-                            ? 'bg-sky-100 text-sky-800'
-                            : ord.orderStatus === 'preparing'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-stone-100 text-stone-700'
-                        }`}
-                      >
-                        {ord.orderStatus.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <div className="text-xs text-stone-400 mt-1">
-                      Customer: <strong className="text-stone-700">{ord.customerName}</strong> ({ord.customerPhone}) · {ord.deliveryAddress}
-                    </div>
-                  </div>
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-3.5 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
+              <span className="text-[11px] text-stone-400 block uppercase font-semibold">Total Orders</span>
+              <span className="text-xl font-bold font-mono text-stone-900 dark:text-white">
+                {merchantOrders.length}
+              </span>
+            </div>
+            <div className="p-3.5 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
+              <span className="text-[11px] text-amber-500 block uppercase font-semibold">Action Needed</span>
+              <span className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
+                {merchantOrders.filter((o) => o.orderStatus === 'received' || o.orderStatus === 'accepted').length}
+              </span>
+            </div>
+            <div className="p-3.5 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
+              <span className="text-[11px] text-sky-500 block uppercase font-semibold">In Transit</span>
+              <span className="text-xl font-bold font-mono text-sky-600 dark:text-sky-400">
+                {merchantOrders.filter((o) => o.orderStatus === 'in_transit').length}
+              </span>
+            </div>
+            <div className="p-3.5 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
+              <span className="text-[11px] text-emerald-600 block uppercase font-semibold">99% Payout Revenue</span>
+              <span className="text-xl font-bold font-mono text-emerald-700 dark:text-emerald-400">
+                ZMW {merchantOrders.reduce((sum, o) => sum + (o.merchantPayout || 0), 0).toFixed(2)}
+              </span>
+            </div>
+          </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => window.print()}
-                      className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                      title="Print Official Merchant Invoice"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Print Invoice</span>
-                    </button>
-                    <a
-                      href={`tel:${ord.customerPhone}`}
-                      className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-                      title="Call Buyer"
-                    >
-                      <PhoneCall className="w-4 h-4" />
-                    </a>
+          {/* KANBAN BOARD VIEW */}
+          {ordersViewMode === 'kanban' ? (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+              {/* Lane 1: Received / Pending */}
+              <div className="bg-stone-50 dark:bg-stone-900/60 rounded-2xl p-3 border border-stone-200 dark:border-stone-800 flex flex-col space-y-3 min-h-[480px]">
+                <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                    <h4 className="font-bold text-xs text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+                      1. New / Received
+                    </h4>
                   </div>
+                  <span className="text-xs font-mono font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                    {merchantOrders.filter((o) => o.orderStatus === 'received').length}
+                  </span>
                 </div>
 
-                {/* Items in order */}
-                <div className="space-y-2">
-                  <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block">
-                    Ordered Items
-                  </span>
-                  {ord.items.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-xs py-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-stone-400">{item.quantity}x</span>
-                        <span className="font-medium text-stone-800">{item.product.name}</span>
+                <div className="space-y-3 flex-1 overflow-y-auto">
+                  {merchantOrders.filter((o) => o.orderStatus === 'received').map((ord) => (
+                    <div
+                      key={ord.id}
+                      className="p-3.5 bg-white dark:bg-stone-800 rounded-xl border-2 border-amber-300 dark:border-amber-700 shadow-xs space-y-2.5 text-xs animate-in fade-in"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold font-mono text-stone-900 dark:text-white">#{ord.id}</span>
+                        <span className="text-[10px] font-mono text-stone-400 font-semibold">{ord.paymentMethod.toUpperCase()}</span>
                       </div>
-                      <span className="font-mono font-bold text-stone-900">
-                        ZMW {(item.product.price * item.quantity).toFixed(2)}
-                      </span>
+                      <div>
+                        <div className="font-semibold text-stone-900 dark:text-stone-100">{ord.customerName}</div>
+                        <div className="text-[11px] text-stone-500 truncate">{ord.deliveryAddress}</div>
+                      </div>
+                      <div className="py-1 px-2 rounded bg-stone-50 dark:bg-stone-900/80 text-[11px] space-y-1">
+                        {ord.items.map((item, i) => (
+                          <div key={i} className="flex justify-between">
+                            <span className="truncate">{item.quantity}x {item.product.name}</span>
+                            <span className="font-mono font-bold shrink-0 ml-1">K{item.product.price * item.quantity}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-stone-100 dark:border-stone-700/60">
+                        <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                          Payout: K{ord.merchantPayout.toFixed(0)}
+                        </span>
+                        <button
+                          onClick={() => {
+                            updateOrderStatus(ord.id, 'accepted');
+                            playNewOrderChime();
+                          }}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                        >
+                          Accept & Prepare →
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {merchantOrders.filter((o) => o.orderStatus === 'received').length === 0 && (
+                    <div className="p-6 text-center text-stone-400 text-xs italic">
+                      No pending orders waiting.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lane 2: Preparing / Packaging */}
+              <div className="bg-stone-50 dark:bg-stone-900/60 rounded-2xl p-3 border border-stone-200 dark:border-stone-800 flex flex-col space-y-3 min-h-[480px]">
+                <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <h4 className="font-bold text-xs text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+                      2. Preparing Goods
+                    </h4>
+                  </div>
+                  <span className="text-xs font-mono font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                    {merchantOrders.filter((o) => o.orderStatus === 'accepted' || o.orderStatus === 'preparing').length}
+                  </span>
+                </div>
+
+                <div className="space-y-3 flex-1 overflow-y-auto">
+                  {merchantOrders.filter((o) => o.orderStatus === 'accepted' || o.orderStatus === 'preparing').map((ord) => (
+                    <div
+                      key={ord.id}
+                      className="p-3.5 bg-white dark:bg-stone-800 rounded-xl border border-blue-200 dark:border-blue-900/80 shadow-xs space-y-2.5 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold font-mono text-stone-900 dark:text-white">#{ord.id}</span>
+                        <span className="text-[10px] font-mono text-blue-600 dark:text-blue-400 font-bold uppercase">Preparing</span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-stone-900 dark:text-stone-100">{ord.customerName}</div>
+                        <div className="text-[11px] text-stone-500 truncate">{ord.deliveryAddress}</div>
+                      </div>
+                      <div className="py-1 px-2 rounded bg-stone-50 dark:bg-stone-900/80 text-[11px] space-y-1">
+                        {ord.items.map((item, i) => (
+                          <div key={i} className="flex justify-between">
+                            <span className="truncate">{item.quantity}x {item.product.name}</span>
+                            <span className="font-mono font-bold shrink-0 ml-1">K{item.product.price * item.quantity}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-stone-100 dark:border-stone-700/60">
+                        <a href={`tel:${ord.customerPhone}`} className="text-[11px] text-emerald-600 hover:underline">
+                          Call Buyer
+                        </a>
+                        <button
+                          onClick={() => updateOrderStatus(ord.id, 'in_transit')}
+                          className="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                        >
+                          <Truck className="w-3 h-3" />
+                          <span>Dispatch Courier →</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {merchantOrders.filter((o) => o.orderStatus === 'accepted' || o.orderStatus === 'preparing').length === 0 && (
+                    <div className="p-6 text-center text-stone-400 text-xs italic">
+                      No orders currently being packed.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lane 3: In Transit */}
+              <div className="bg-stone-50 dark:bg-stone-900/60 rounded-2xl p-3 border border-stone-200 dark:border-stone-800 flex flex-col space-y-3 min-h-[480px]">
+                <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                    <h4 className="font-bold text-xs text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+                      3. Out for Delivery
+                    </h4>
+                  </div>
+                  <span className="text-xs font-mono font-bold bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 px-2 py-0.5 rounded-full">
+                    {merchantOrders.filter((o) => o.orderStatus === 'in_transit').length}
+                  </span>
+                </div>
+
+                <div className="space-y-3 flex-1 overflow-y-auto">
+                  {merchantOrders.filter((o) => o.orderStatus === 'in_transit').map((ord) => (
+                    <div
+                      key={ord.id}
+                      className="p-3.5 bg-white dark:bg-stone-800 rounded-xl border border-sky-300 dark:border-sky-800 shadow-xs space-y-2.5 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold font-mono text-stone-900 dark:text-white">#{ord.id}</span>
+                        <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400 font-bold uppercase">{ord.trackingNumber}</span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-stone-900 dark:text-stone-100">{ord.customerName}</div>
+                        <div className="text-[11px] text-stone-500 truncate">{ord.deliveryAddress}</div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-stone-100 dark:border-stone-700/60">
+                        <span className="text-[11px] text-stone-500 font-mono">Courier: Active</span>
+                        <button
+                          onClick={() => updateOrderStatus(ord.id, 'delivered')}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                        >
+                          Confirm Delivery ✓
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {merchantOrders.filter((o) => o.orderStatus === 'in_transit').length === 0 && (
+                    <div className="p-6 text-center text-stone-400 text-xs italic">
+                      No active courier dispatches.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lane 4: Delivered / Completed */}
+              <div className="bg-stone-50 dark:bg-stone-900/60 rounded-2xl p-3 border border-stone-200 dark:border-stone-800 flex flex-col space-y-3 min-h-[480px]">
+                <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <h4 className="font-bold text-xs text-stone-900 dark:text-stone-100 uppercase tracking-wider">
+                      4. Completed & Paid
+                    </h4>
+                  </div>
+                  <span className="text-xs font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                    {merchantOrders.filter((o) => o.orderStatus === 'delivered').length}
+                  </span>
+                </div>
+
+                <div className="space-y-3 flex-1 overflow-y-auto">
+                  {merchantOrders.filter((o) => o.orderStatus === 'delivered').map((ord) => (
+                    <div
+                      key={ord.id}
+                      className="p-3 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 shadow-xs space-y-2 text-xs opacity-90"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold font-mono text-stone-900 dark:text-white">#{ord.id}</span>
+                        <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">PAID (99%)</span>
+                      </div>
+                      <div className="text-[11px] text-stone-600 dark:text-stone-300">
+                        {ord.customerName} · Net: <span className="font-bold font-mono text-emerald-700 dark:text-emerald-300">K{ord.merchantPayout.toFixed(2)}</span>
+                      </div>
+                      <button
+                        onClick={() => window.print()}
+                        className="w-full py-1 bg-stone-100 hover:bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-200 rounded text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Printer className="w-3 h-3" />
+                        <span>Receipt / Invoice</span>
+                      </button>
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          ) : (
+            // TABLE VIEW
+            <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl overflow-hidden shadow-xs">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-stone-50 dark:bg-stone-950 border-b border-stone-200 dark:border-stone-800 text-stone-500 font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3.5">Order</th>
+                    <th className="p-3.5">Customer</th>
+                    <th className="p-3.5">Items</th>
+                    <th className="p-3.5 font-mono">Total (ZMW)</th>
+                    <th className="p-3.5 font-mono">Net 99%</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100 dark:divide-stone-800">
+                  {merchantOrders.map((ord) => (
+                    <tr key={ord.id} className="hover:bg-stone-50/50 dark:hover:bg-stone-800/50">
+                      <td className="p-3.5 font-bold font-mono text-stone-900 dark:text-white">#{ord.id}</td>
+                      <td className="p-3.5 font-semibold text-stone-800 dark:text-stone-200">{ord.customerName}</td>
+                      <td className="p-3.5 text-stone-500">{ord.items.length} items</td>
+                      <td className="p-3.5 font-mono font-bold">K{ord.total.toFixed(2)}</td>
+                      <td className="p-3.5 font-mono font-bold text-emerald-600">K{ord.merchantPayout.toFixed(2)}</td>
+                      <td className="p-3.5">
+                        <span className="capitalize px-2 py-0.5 rounded text-[10px] font-bold bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200">
+                          {ord.orderStatus.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <button
+                          onClick={() => updateOrderStatus(ord.id, ord.orderStatus === 'received' ? 'accepted' : 'delivered')}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold cursor-pointer"
+                        >
+                          Advance State
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
-                {/* Financial 1% auto-split summary */}
-                <div className="p-3 bg-stone-50 rounded-xl grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div>
-                    <span className="text-[11px] text-stone-400 block">Subtotal</span>
-                    <span className="font-mono font-bold text-stone-800">ZMW {ord.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-stone-400 block">Delivery Fee</span>
-                    <span className="font-mono text-stone-800">ZMW {ord.deliveryFee.toFixed(2)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-amber-700 font-semibold block">Bwana 1% Commission</span>
-                    <span className="font-mono font-bold text-amber-700">-ZMW {ord.platformSplitFee.toFixed(2)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-emerald-700 font-bold block">Merchant Payout (99%)</span>
-                    <span className="font-mono font-extrabold text-emerald-700 text-sm">
-                      ZMW {ord.merchantPayout.toFixed(2)}
-                    </span>
-                  </div>
+      {/* TAB CONTENT: Followers & Broadcasts */}
+      {activeTab === 'broadcasts' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold font-display text-stone-900 dark:text-white">
+                  Follower Network & Broadcasts
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[10px] font-bold uppercase tracking-wider">
+                  Direct Marketing
+                </span>
+              </div>
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+                Broadcast new product drops, flash discount vouchers, and announcements directly to customers who follow {business.name}.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowBroadcastForm(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer self-start sm:self-auto shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Broadcast</span>
+            </button>
+          </div>
+
+          {/* Follower Stats Card */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
+              <div className="flex items-center gap-2 text-stone-500 text-xs mb-1 font-semibold">
+                <Users className="w-4 h-4 text-emerald-600" />
+                <span>Active Followers</span>
+              </div>
+              <div className="text-2xl font-bold font-mono text-stone-900 dark:text-white">
+                348 Citizens
+              </div>
+              <div className="text-[11px] text-emerald-600 mt-1 font-medium">+14 new this week</div>
+            </div>
+
+            <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
+              <div className="flex items-center gap-2 text-stone-500 text-xs mb-1 font-semibold">
+                <Radio className="w-4 h-4 text-amber-500" />
+                <span>Broadcast Feed Reach</span>
+              </div>
+              <div className="text-2xl font-bold font-mono text-stone-900 dark:text-white">
+                1,820 Impressions
+              </div>
+              <div className="text-[11px] text-stone-400 mt-1">Across Discovery feed</div>
+            </div>
+
+            <div className="p-4 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-2xs">
+              <div className="flex items-center gap-2 text-stone-500 text-xs mb-1 font-semibold">
+                <Tag className="w-4 h-4 text-emerald-600" />
+                <span>Voucher Redemptions</span>
+              </div>
+              <div className="text-2xl font-bold font-mono text-stone-900 dark:text-white">
+                42 Redemptions
+              </div>
+              <div className="text-[11px] text-emerald-600 mt-1">High conversion rate</div>
+            </div>
+          </div>
+
+          {/* Success Notification */}
+          {broadcastSuccess && (
+            <div className="p-4 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-2xl text-xs flex items-center justify-between animate-in fade-in">
+              <div className="flex items-center gap-2 font-semibold">
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+                <span>Broadcast published successfully! Your followers will see this in their Following feed now.</span>
+              </div>
+              <span className="font-mono text-[10px] text-emerald-700">Live in Feed</span>
+            </div>
+          )}
+
+          {/* Broadcast Composer Form */}
+          {showBroadcastForm && (
+            <form
+              onSubmit={handleBroadcastPost}
+              className="p-5 bg-white dark:bg-stone-900 border border-emerald-400 dark:border-emerald-700 rounded-2xl shadow-sm space-y-4 animate-in fade-in"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-stone-100 dark:border-stone-800">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-stone-900 dark:text-white flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>Compose Broadcast to Followers</span>
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setShowBroadcastForm(false)}
+                  className="text-xs text-stone-400 hover:text-stone-700 cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                    Broadcast Title / Headline
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={broadcastTitle}
+                    onChange={(e) => setBroadcastTitle(e.target.value)}
+                    placeholder="e.g. ⚡ Flash Weekend Sale: 15% Off All Power Tools!"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs text-stone-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
                 </div>
-
-                {/* Order workflow actions */}
-                <div className="pt-2 border-t border-stone-100 flex flex-wrap gap-2 items-center justify-between">
-                  <span className="text-[11px] text-stone-500">Update Order State:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      onClick={() => updateOrderStatus(ord.id, 'accepted')}
-                      className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded text-xs font-semibold cursor-pointer"
-                    >
-                      Accept Order
-                    </button>
-                    <button
-                      onClick={() => updateOrderStatus(ord.id, 'preparing')}
-                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded text-xs font-semibold cursor-pointer"
-                    >
-                      Preparing Goods
-                    </button>
-                    <button
-                      onClick={() => updateOrderStatus(ord.id, 'in_transit')}
-                      className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded text-xs font-semibold cursor-pointer flex items-center gap-1"
-                    >
-                      <Truck className="w-3 h-3" />
-                      <span>Hand to Courier</span>
-                    </button>
-                    <button
-                      onClick={() => updateOrderStatus(ord.id, 'delivered')}
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold cursor-pointer"
-                    >
-                      Mark Delivered
-                    </button>
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                    Broadcast Type
+                  </label>
+                  <select
+                    value={broadcastType}
+                    onChange={(e) => setBroadcastType(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs text-stone-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="promotion">Special Promotion / Deal</option>
+                    <option value="new_product">New Product Arrival</option>
+                    <option value="announcement">Store Notice / Hours Update</option>
+                    <option value="flash_sale">Flash Sale</option>
+                  </select>
                 </div>
               </div>
-            ))}
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                  Message Content / Details
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={broadcastContent}
+                  onChange={(e) => setBroadcastContent(e.target.value)}
+                  placeholder="Describe your promotion, new product inventory, or holiday hours for your customers..."
+                  className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs text-stone-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-stone-100 dark:border-stone-800">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                    Optional Voucher Code
+                  </label>
+                  <input
+                    type="text"
+                    value={broadcastDiscountCode}
+                    onChange={(e) => setBroadcastDiscountCode(e.target.value.toUpperCase())}
+                    placeholder="e.g. FLASH15"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs text-stone-900 dark:text-white font-mono uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                    Discount Percentage (%)
+                  </label>
+                  <input
+                    type="number"
+                    value={broadcastDiscountPct}
+                    onChange={(e) => setBroadcastDiscountPct(Number(e.target.value))}
+                    placeholder="15"
+                    className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs text-stone-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBroadcastForm(false)}
+                  className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <Radio className="w-3.5 h-3.5" />
+                  <span>Send Broadcast Now</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Past Broadcasts List */}
+          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-5 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500">
+              Recent Broadcast History
+            </h4>
+            <div className="divide-y divide-stone-100 dark:divide-stone-800 text-xs">
+              <div className="py-3 flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-stone-900 dark:text-white">Fresh Consignment: Dangote Cement</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase">New Product</span>
+                  </div>
+                  <p className="text-stone-500 mt-1 line-clamp-1">1,200 bags of Dangote 42.5N cement arrived. Special price of K145.</p>
+                </div>
+                <span className="text-[11px] text-stone-400 font-mono shrink-0">Today · 38 likes</span>
+              </div>
+
+              <div className="py-3 flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-stone-900 dark:text-white">Power Backup Solar Inverters & Batteries</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-stone-100 text-stone-700 uppercase">Notice</span>
+                  </div>
+                  <p className="text-stone-500 mt-1 line-clamp-1">Load shedding solutions: hybrid 5kW solar inverters with lithium batteries.</p>
+                </div>
+                <span className="text-[11px] text-stone-400 font-mono shrink-0">Yesterday · 89 likes</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -897,8 +1402,8 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
               <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider">
                 New Product Details
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-stone-700 mb-1">Product Name</label>
                   <input
                     type="text"
@@ -910,7 +1415,7 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-stone-700 mb-1">Price (ZMW / K)</label>
+                  <label className="block text-xs font-medium text-stone-700 mb-1">Base Price (ZMW / K)</label>
                   <input
                     type="number"
                     required
@@ -920,6 +1425,19 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
                     className="w-full px-3 py-1.5 border border-stone-300 rounded-lg text-xs"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1">Compare-at Price (K)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 175"
+                    value={productComparePrice}
+                    onChange={(e) => setProductComparePrice(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-stone-300 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1">Category</label>
                   <select
@@ -932,32 +1450,125 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
                     <option value="Paint & Finishes">Paint & Finishes</option>
                     <option value="Power Tools">Power Tools</option>
                     <option value="Hardware & Fasteners">Hardware & Fasteners</option>
+                    <option value="Food & Beverages">Food & Beverages</option>
+                    <option value="Agro & Farming">Agro & Farming</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1">Initial Stock Quantity</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="30"
+                    value={productStock}
+                    onChange={(e) => setProductStock(Number(e.target.value))}
+                    className="w-full px-3 py-1.5 border border-stone-300 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1">Specifications / Notes</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ZABS approved, pallet rates"
+                    value={productDesc}
+                    onChange={(e) => setProductDesc(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-stone-300 rounded-lg text-xs"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-stone-700 mb-1">Specifications / Packaging</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Conforming to ZABS standards. Pallet discounts available."
-                  value={productDesc}
-                  onChange={(e) => setProductDesc(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-stone-300 rounded-lg text-xs"
-                />
+              {/* Multi-Variant Creator */}
+              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                    Product Variants (Optional Sizes, Packs, or Colors)
+                  </span>
+                  <span className="text-[11px] text-stone-500">
+                    {productVariantsList.length} configured
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Variant Name (e.g. 1kg Bag, Large)"
+                    value={newVariantName}
+                    onChange={(e) => setNewVariantName(e.target.value)}
+                    className="px-2.5 py-1 text-xs border border-stone-300 rounded-lg bg-white sm:col-span-2"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Price Adj (e.g. +20 or 0)"
+                    value={newVariantPriceAdj}
+                    onChange={(e) => setNewVariantPriceAdj(Number(e.target.value))}
+                    className="px-2.5 py-1 text-xs border border-stone-300 rounded-lg bg-white"
+                  />
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      placeholder="Stock"
+                      value={newVariantStock}
+                      onChange={(e) => setNewVariantStock(Number(e.target.value))}
+                      className="w-16 px-2 py-1 text-xs border border-stone-300 rounded-lg bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newVariantName.trim()) return;
+                        setProductVariantsList((prev) => [
+                          ...prev,
+                          {
+                            id: `var-${Date.now()}-${prev.length}`,
+                            name: newVariantName.trim(),
+                            priceAdjustment: Number(newVariantPriceAdj),
+                            stock: Number(newVariantStock),
+                          },
+                        ]);
+                        setNewVariantName('');
+                        setNewVariantPriceAdj(0);
+                        setNewVariantStock(10);
+                      }}
+                      className="px-3 py-1 bg-stone-900 text-white rounded-lg text-xs font-semibold hover:bg-stone-800 transition-colors cursor-pointer"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                </div>
+
+                {/* Added Variants Pills */}
+                {productVariantsList.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {productVariantsList.map((v, idx) => (
+                      <span
+                        key={v.id}
+                        className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px] flex items-center gap-1.5"
+                      >
+                        <strong>{v.name}</strong>
+                        <span>({v.priceAdjustment >= 0 ? `+K${v.priceAdjustment}` : `-K${Math.abs(v.priceAdjustment)}`} · {v.stock} in stock)</span>
+                        <button
+                          type="button"
+                          onClick={() => setProductVariantsList((prev) => prev.filter((_, i) => i !== idx))}
+                          className="hover:text-rose-700 ml-1 font-bold cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddProduct(false)}
-                  className="px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900"
+                  className="px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold"
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold cursor-pointer"
                 >
                   Save Product to Catalog
                 </button>
@@ -973,7 +1584,8 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
                   <th className="p-3.5">Product Name</th>
                   <th className="p-3.5">Category</th>
                   <th className="p-3.5 font-mono">Price (ZMW)</th>
-                  <th className="p-3.5">Status</th>
+                  <th className="p-3.5">Variants</th>
+                  <th className="p-3.5">Inventory Stock</th>
                   <th className="p-3.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -990,9 +1602,18 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
                     <td className="p-3.5 font-mono font-bold text-stone-900">
                       K{p.price.toLocaleString()}
                     </td>
+                    <td className="p-3.5 text-stone-600">
+                      {p.variants && p.variants.length > 0 ? (
+                        <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-[11px]">
+                          {p.variants.length} variants
+                        </span>
+                      ) : (
+                        <span className="text-stone-400 text-[11px]">Standard</span>
+                      )}
+                    </td>
                     <td className="p-3.5">
-                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px] font-medium">
-                        Active In Stock
+                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px] font-bold">
+                        {p.stockQuantity !== undefined ? `${p.stockQuantity} in stock` : 'Active In Stock'}
                       </span>
                     </td>
                     <td className="p-3.5 text-right">

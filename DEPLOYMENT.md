@@ -1,35 +1,47 @@
 # BWANA — Cloud Deployment & DevOps Guide
 
-## 1. Production Architecture (Scalable Modular Monolith)
+## 1. Production Architecture (AWS High Availability & Load Balancing)
 
 ```
-                    +---------------------------+
-                    |    Cloudflare CDN / DNS   |
-                    +---------------------------+
-                                  |
-                                  v
-                    +---------------------------+
-                    |  Application Load Balancer|
-                    +---------------------------+
-                                  |
-                   +--------------+--------------+
-                   |                             |
-                   v                             v
-     +---------------------------+ +---------------------------+
-     |   Bwana Web Instance 1    | |   Bwana Web Instance 2    |
-     |   (Cloud Run / Container) | |   (Cloud Run / Container) |
-     +---------------------------+ +---------------------------+
-                   |                             |
-                   +--------------+--------------+
-                                  |
-            +---------------------+---------------------+
-            |                                           |
-            v                                           v
-+-----------------------+                   +-----------------------+
-| Managed Cloud Firestore|                  | Cloud SQL PostgreSQL  |
-| * Real-time Document  |                   | * PostGIS Spatial Ext |
-| * Multi-Zone Replica  |                   | * Read Replicas       |
-+-----------------------+                   +-----------------------+
+                     +---------------------------------------+
+                     |    Amazon Route 53 (DNS / Anycast)    |
+                     +---------------------------------------+
+                                         |
+                                         v
+                     +---------------------------------------+
+                     | Amazon CloudFront (Global Edge CDN)   |
+                     | * Edge PoPs: Johannesburg & Cape Town |
+                     | * Static Assets, Imagery & DDoS Shield|
+                     +---------------------------------------+
+                                         | HTTPS (TLS 1.3)
+                                         v
+                     +---------------------------------------+
+                     |    AWS Application Load Balancer      |
+                     |    * Dual-Stack (IPv4 / IPv6)         |
+                     |    * Multi-AZ Target Group (/api/*)   |
+                     |    * Health Checks: /api/health (200) |
+                     +---------------------------------------+
+                                         |
+                        +----------------+----------------+
+                        |                                 |
+                        v                                 v
+         +-----------------------------+   +-----------------------------+
+         |  ECS Fargate Task (AZ-a)    |   |  ECS Fargate Task (AZ-b)    |
+         |  * Container Port 3000      |   |  * Container Port 3000      |
+         |  * Auto-scales 2 to 20 tasks|   |  * Auto-scales 2 to 20 tasks|
+         +-----------------------------+   +-----------------------------+
+                        |                                 |
+                        +----------------+----------------+
+                                         |
+                   +---------------------+---------------------+
+                   |                                           |
+                   v                                           v
+       +-----------------------+                   +-----------------------+
+       | Amazon RDS / Cloud SQL|                   | Amazon ElastiCache    |
+       | * PostgreSQL 16+      |                   | * Redis Cluster v7    |
+       | * PostGIS Spatial Ext |                   | * Geo-hash Hot Cache  |
+       | * Multi-AZ Failover   |                   | * Rate-limiting Token |
+       +-----------------------+                   +-----------------------+
 ```
 
 ---

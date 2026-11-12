@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, ShieldCheck, Store, Compass, Truck, ShoppingBag, User, Clock, X, LogOut, CheckCircle2 } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Store, Compass, Truck, ShoppingBag, User, Clock, X, LogOut, CheckCircle2, MapPin } from 'lucide-react';
 import { useCart } from './context/CartContext';
 import {
   checkIsSessionExpired,
@@ -48,7 +48,9 @@ import { SidebarDrawer } from './components/layout/SidebarDrawer';
 import { OfflineCacheBanner } from './components/common/OfflineCacheBanner';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { DirectChatModal } from './components/chat/DirectChatModal';
+import { DockedChatDrawer } from './components/chat/DockedChatDrawer';
 import { UserConversationsDrawer } from './components/chat/UserConversationsDrawer';
+import { FollowingFeed } from './components/discovery/FollowingFeed';
 import { DATABASE_CATEGORIES } from './services/dbSeeder';
 import { APIProvider } from '@vis.gl/react-google-maps';
 
@@ -111,11 +113,52 @@ export default function App() {
 
   // Google Maps API Quota alert state
   const [quotaExceeded, setQuotaExceeded] = useState<boolean>(false);
+  const [locationNotice, setLocationNotice] = useState<{ message: string; type: 'info' | 'denied' } | null>(null);
 
   useEffect(() => {
     const quotaHandler = () => setQuotaExceeded(true);
     window.addEventListener('gmp-quota-exceeded', quotaHandler);
     return () => window.removeEventListener('gmp-quota-exceeded', quotaHandler);
+  }, []);
+
+  // Safe browser location detection on first visit
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+
+    // Only attempt if not already saved in local session
+    const hasPrompted = sessionStorage.getItem('bwana_gps_checked');
+    if (hasPrompted) return;
+    sessionStorage.setItem('bwana_gps_checked', 'true');
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        // Match closest Zambian location
+        let closest = LOCATIONS[0];
+        let minD = Infinity;
+        for (const loc of LOCATIONS) {
+          const d = Math.hypot(
+            loc.coordinates.latitude - latitude,
+            loc.coordinates.longitude - longitude
+          );
+          if (d < minD) {
+            minD = d;
+            closest = loc;
+          }
+        }
+        setCurrentLocation(closest);
+      },
+      (err) => {
+        if (err.code === 1) {
+          // User denied permission: inform them gently with manual change option
+          setLocationNotice({
+            message: 'Location access was not enabled. Defaulting to Kitwe Central — tap to change your city anytime.',
+            type: 'denied',
+          });
+        }
+      },
+      { timeout: 6000, maximumAge: 600000 }
+    );
   }, []);
 
   // Core Data State (Pure live synchronization with Firestore database)
@@ -476,14 +519,16 @@ export default function App() {
     createNotificationInFirestore(nrcNotif).catch(console.error);
   };
 
-  // Security Role Switcher between the 3 users
+  // Security Role Switcher between system users
   const handleSwitchUser = (u: SystemUser) => {
     setIsAuthenticated(true);
-    setCurrentRole(u.role);
+    const isSuper = u.email.toLowerCase() === 'm.mumba8@gmail.com' || u.role === 'super_admin';
+    const effectiveRole: UserRole = isSuper ? 'super_admin' : u.role;
+    setCurrentRole(effectiveRole);
     setCurrentUserEmail(u.email);
-    setCurrentUserName(u.name);
-    if (u.role === 'admin') setCurrentTab('admin_dashboard');
-    else if (u.role === 'business') setCurrentTab('business_dashboard');
+    setCurrentUserName(isSuper ? 'Super Administrator (M. Mumba)' : u.name);
+    if (effectiveRole === 'admin' || effectiveRole === 'super_admin') setCurrentTab('admin_dashboard');
+    else if (effectiveRole === 'business' || effectiveRole === 'business_owner') setCurrentTab('business_dashboard');
     else setCurrentTab('user_dashboard');
   };
 
@@ -1204,6 +1249,34 @@ export default function App() {
         </div>
       )}
 
+      {/* GPS Location Permission / Fallback Informational Banner */}
+      {locationNotice && (
+        <div className="bg-stone-100 dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 text-stone-800 dark:text-stone-200 px-4 py-2.5 text-xs sm:text-sm flex items-center justify-between gap-3 animate-fade-in transition-colors">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{locationNotice.message}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setLocationNotice(null);
+                setLocationModalOpen(true);
+              }}
+              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+            >
+              Change City
+            </button>
+            <button
+              onClick={() => setLocationNotice(null)}
+              className="p-1 text-stone-500 hover:text-stone-900 dark:hover:text-white rounded cursor-pointer"
+              title="Dismiss location notice"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Offline Status & Directory Cache Notification */}
       <OfflineCacheBanner
         businesses={businesses}
@@ -1297,6 +1370,16 @@ export default function App() {
           />
         )}
 
+        {currentTab === 'following' && (
+          <FollowingFeed
+            currentUserId={currentUserAccount?.id || currentUserEmail || 'guest_user'}
+            allBusinesses={businesses}
+            onSelectBusiness={(biz) => setSelectedBusiness(biz)}
+            onOpenChatWithBusiness={(biz) => setDirectChatBiz(biz)}
+            onNavigateToDiscovery={() => setCurrentTab('discover')}
+          />
+        )}
+
         {currentTab === 'favorites' && (
           <SavedFavoritesView
             businesses={businesses}
@@ -1357,6 +1440,8 @@ export default function App() {
             businesses={businesses}
             verifications={verifications}
             auditLogs={auditLogs}
+            currentUserEmail={currentUserEmail || 'm.mumba8@gmail.com'}
+            currentRole={currentRole}
             onApproveVerification={handleApproveVerification}
             onRejectVerification={handleRejectVerification}
             onApproveGoogleMapsBusiness={handleApproveGoogleMapsBusiness}
@@ -1476,24 +1561,64 @@ export default function App() {
           } else {
             setIsAuthenticated(true);
             setCurrentUserEmail(email);
-            setCurrentRole(role);
-            setCurrentUserName(name || email.split('@')[0]);
-            if (role === 'business_owner' || role === 'business') {
+
+            // Auto-detect if user owns or registered any business
+            const cleanEmail = email.trim().toLowerCase();
+            const matchedBiz = businesses.find(
+              (b) =>
+                (b.email && b.email.trim().toLowerCase() === cleanEmail) ||
+                (b.claimedByUserId && b.claimedByUserId.trim().toLowerCase() === cleanEmail)
+            );
+
+            const isSuperAdmin = cleanEmail === 'm.mumba8@gmail.com';
+            const isAdmin =
+              isSuperAdmin ||
+              role === 'admin' ||
+              role === 'super_admin';
+
+            const isBizOwner =
+              !isAdmin && (
+                role === 'business_owner' ||
+                role === 'business' ||
+                Boolean(matchedBiz)
+              );
+
+            const effectiveRole: UserRole = isSuperAdmin
+              ? 'super_admin'
+              : isAdmin
+              ? 'admin'
+              : isBizOwner
+              ? 'business_owner'
+              : 'user';
+
+            setCurrentRole(effectiveRole);
+            setCurrentUserName(
+              isSuperAdmin
+                ? 'Super Administrator (M. Mumba)'
+                : isAdmin
+                ? name || 'Platform Administrator'
+                : matchedBiz?.name || name || email.split('@')[0]
+            );
+
+            if (isAdmin) {
+              setCurrentTab('admin_dashboard');
+            } else if (isBizOwner) {
               setCurrentTab('business_dashboard');
-              const matchedBiz = businesses.find((b) => b.email === email || b.claimedByUserId === email);
               if (matchedBiz) {
                 setCurrentBusinessOwnerBiz(matchedBiz);
                 setActiveBusinessId(matchedBiz.id);
               }
               const session = {
                 email,
-                role,
+                role: 'business_owner' as UserRole,
                 name: matchedBiz?.name || name || 'Verified Merchant',
                 businessId: matchedBiz?.id || activeBusinessId || 'biz-abc-hardware',
-                businessName: matchedBiz?.name || name || 'ABC Hardware & Supplies',
+                businessName: matchedBiz?.name || name || 'Verified Merchant',
               };
               setBusinessSession(session);
               saveBusinessSession(session);
+            } else {
+              setCurrentTab('user_dashboard');
             }
             recordUserActivity();
             setSessionTimeoutNotice(null);
@@ -1518,29 +1643,45 @@ export default function App() {
         initialPersona="business"
         initialMode="signin"
         onClose={() => setBusinessLoginModalOpen(false)}
-        onLoginSuccess={(email, role, name, business) => {
+        onLoginSuccess={(email, _role, name, business) => {
           if (business) {
             handleBusinessRegistrationSuccess(business, email);
           } else {
             setIsAuthenticated(true);
             setCurrentUserEmail(email);
-            setCurrentRole(role);
-            setCurrentUserName(name || 'Business Owner');
-            setCurrentTab('business_dashboard');
-            const matchedBiz = businesses.find((b) => b.email === email || b.claimedByUserId === email);
-            if (matchedBiz) {
-              setCurrentBusinessOwnerBiz(matchedBiz);
-              setActiveBusinessId(matchedBiz.id);
+
+            const cleanEmail = email.trim().toLowerCase();
+            const isSuperAdmin = cleanEmail === 'm.mumba8@gmail.com';
+
+            if (isSuperAdmin) {
+              setCurrentRole('super_admin');
+              setCurrentUserName('Super Administrator (M. Mumba)');
+              setCurrentTab('admin_dashboard');
+            } else {
+              setCurrentRole('business_owner');
+
+              const matchedBiz = businesses.find(
+                (b) =>
+                  (b.email && b.email.trim().toLowerCase() === cleanEmail) ||
+                  (b.claimedByUserId && b.claimedByUserId.trim().toLowerCase() === cleanEmail)
+              );
+
+              setCurrentUserName(matchedBiz?.name || name || 'Business Owner');
+              setCurrentTab('business_dashboard');
+              if (matchedBiz) {
+                setCurrentBusinessOwnerBiz(matchedBiz);
+                setActiveBusinessId(matchedBiz.id);
+              }
+              const session = {
+                email,
+                role: 'business_owner' as UserRole,
+                name: matchedBiz?.name || name || 'Business Owner',
+                businessId: matchedBiz?.id || activeBusinessId || 'biz-abc-hardware',
+                businessName: matchedBiz?.name || name || 'Business Owner',
+              };
+              setBusinessSession(session);
+              saveBusinessSession(session);
             }
-            const session = {
-              email,
-              role,
-              name: matchedBiz?.name || name || 'Business Owner',
-              businessId: matchedBiz?.id || activeBusinessId || 'biz-abc-hardware',
-              businessName: matchedBiz?.name || name || 'Business Owner',
-            };
-            setBusinessSession(session);
-            saveBusinessSession(session);
             recordUserActivity();
             setSessionTimeoutNotice(null);
           }
@@ -1556,9 +1697,11 @@ export default function App() {
         onClose={() => setAdminGateModalOpen(false)}
         onAdminAuthSuccess={(email, role, name) => {
           setIsAuthenticated(true);
+          const isSuper = email.toLowerCase() === 'm.mumba8@gmail.com' || role === 'super_admin';
+          const effectiveRole: UserRole = isSuper ? 'super_admin' : 'admin';
           setCurrentUserEmail(email);
-          setCurrentRole(role);
-          setCurrentUserName(name || 'Platform Administrator');
+          setCurrentRole(effectiveRole);
+          setCurrentUserName(isSuper ? 'Super Administrator (M. Mumba)' : (name || 'Platform Administrator'));
           setCurrentTab('admin_dashboard');
           recordUserActivity();
           setSessionTimeoutNotice(null);
@@ -1682,9 +1825,21 @@ export default function App() {
       <DirectChatModal
         isOpen={Boolean(directChatBiz)}
         onClose={() => setDirectChatBiz(null)}
-        business={directChatBiz}
-        currentUser={currentUserAccount}
-        onCall={handleCall}
+        businessId={directChatBiz?.id || ''}
+        businessName={directChatBiz?.name || 'Business'}
+        businessLogo={directChatBiz?.logoUrl}
+        businessCity={directChatBiz?.city}
+        currentUserId={currentUserAccount?.id || currentUserEmail || 'current_user'}
+        currentUserName={currentUserName || 'Customer'}
+        userPhone={currentUserAccount?.phone}
+      />
+
+      {/* Docked Expandable Floating Chat Drawer (Bottom-right pill with unread badge) */}
+      <DockedChatDrawer
+        currentRole={currentRole}
+        currentUserId={currentUserAccount?.id || currentUserEmail || 'current_user'}
+        currentUserName={currentUserName || 'Customer'}
+        activeBusinessId={activeBusinessId}
       />
 
       {/* User In-App Conversations Drawer */}
@@ -1749,7 +1904,13 @@ export default function App() {
 
           <button
             onClick={() => {
-              if (currentRole === 'business' || currentRole === 'business_owner') {
+              const cleanEmail = currentUserEmail.trim().toLowerCase();
+              const ownsBiz = businesses.some(
+                (b) =>
+                  (b.email && b.email.trim().toLowerCase() === cleanEmail) ||
+                  (b.claimedByUserId && b.claimedByUserId.trim().toLowerCase() === cleanEmail)
+              );
+              if (currentRole === 'business' || currentRole === 'business_owner' || ownsBiz) {
                 setCurrentTab('business_dashboard');
               } else if (isAuthenticated) {
                 setCurrentTab('user_dashboard');
@@ -1763,9 +1924,17 @@ export default function App() {
                 : 'text-stone-400 hover:text-white'
             }`}
           >
-            <User className="w-5 h-5 mb-0.5" />
+            {currentRole === 'business' || currentRole === 'business_owner' ? (
+              <Store className="w-5 h-5 mb-0.5 text-emerald-400" />
+            ) : (
+              <User className="w-5 h-5 mb-0.5" />
+            )}
             <span className="text-[10px] leading-tight">
-              {isAuthenticated ? 'Account' : 'Sign In'}
+              {isAuthenticated
+                ? currentRole === 'business' || currentRole === 'business_owner'
+                  ? 'My Biz'
+                  : 'Profile'
+                : 'Sign In'}
             </span>
           </button>
         </div>

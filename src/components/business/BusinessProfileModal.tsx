@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Phone,
@@ -23,6 +23,7 @@ import {
   Map as MapIcon,
   Copy,
   Check,
+  ChevronRight,
   Wifi,
   Car,
   Truck,
@@ -40,8 +41,9 @@ import {
   CheckCircle2,
   Printer,
   SlidersHorizontal,
-  ChevronRight,
-  ShoppingBag
+  ShoppingBag,
+  UserPlus,
+  UserCheck
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import {
@@ -50,8 +52,10 @@ import {
   BusinessService,
   BusinessReview,
   UserRole,
-  UserAccount
+  UserAccount,
+  ProductVariant
 } from '../../types';
+import { isFollowing, toggleFollow } from '../../services/followService';
 import { BusinessReviewsSection } from './BusinessReviewsSection';
 import { GoogleMapView } from '../common/GoogleMapView';
 import { optimizeBusinessImage, DEFAULT_BUSINESS_COVER } from '../../lib/images/imageOptimizer';
@@ -212,8 +216,22 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
   const [mapZoom, setMapZoom] = useState(15);
   const [mapLayer, setMapLayer] = useState<'streets' | 'satellite'>('streets');
   const [addedItemNotification, setAddedItemNotification] = useState<string | null>(null);
+  const [following, setFollowing] = useState(false);
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, ProductVariant>>({});
 
   const { addToCart } = useCart();
+
+  useEffect(() => {
+    if (business) {
+      setFollowing(isFollowing(currentUser?.email || 'current_user', business.id));
+    }
+  }, [business, currentUser]);
+
+  const handleToggleFollow = () => {
+    if (!business) return;
+    const newState = toggleFollow(currentUser?.email || 'current_user', business.id);
+    setFollowing(newState);
+  };
 
   const businessReviews = useMemo(() => {
     if (!business) return [];
@@ -235,12 +253,12 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
   // Get matching businesses for the activeFilterTag
   const matchingBusinesses = useMemo(() => {
     if (!activeFilterTag) return [];
-    return allBusinesses.filter((b) => b.tags?.includes(activeFilterTag));
+    return (allBusinesses || []).filter((b) => b?.tags?.includes(activeFilterTag));
   }, [activeFilterTag, allBusinesses]);
 
   // Calculate count of other businesses for any tag
   const getOtherBusinessesCount = (tag: string) => {
-    return allBusinesses.filter((b) => b.tags?.includes(tag)).length;
+    return (allBusinesses || []).filter((b) => b?.tags?.includes(tag)).length;
   };
 
   if (!isOpen || !business) return null;
@@ -458,9 +476,30 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                 title="Direct In-App Chat with merchant (No WhatsApp needed)"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Direct In-App Chat</span>
+                <span>Chat with Business</span>
               </button>
             )}
+
+            <button
+              onClick={handleToggleFollow}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                following
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                  : 'bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 text-white shadow-xs'
+              }`}
+            >
+              {following ? (
+                <>
+                  <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Following</span>
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4 text-emerald-400" />
+                  <span>Follow Business</span>
+                </>
+              )}
+            </button>
 
             <button
               onClick={() => onWhatsApp(business.whatsapp)}
@@ -945,7 +984,7 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                       </button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {business.products.slice(0, 4).map((p) => (
+                      {(business.products || []).slice(0, 4).map((p) => (
                         <div key={p.id} className="p-3 bg-stone-50 rounded-lg border border-stone-200">
                           <div className="text-xs font-semibold text-stone-900">{p.name}</div>
                           <div className="text-xs text-stone-500 mt-1 line-clamp-1">{p.description}</div>
@@ -965,7 +1004,7 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                       Storefront & Facility Gallery
                     </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {business.galleryImages.map((img, idx) => (
+                      {(business.galleryImages || []).map((img, idx) => (
                         <img
                           key={idx}
                           src={optimizeBusinessImage(img, 400)}
@@ -1006,7 +1045,10 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                     <GoogleMapView
                       businesses={allBusinesses || [business]}
                       activeBusiness={business}
-                      center={{ latitude: business.coordinates.latitude, longitude: business.coordinates.longitude }}
+                      center={{
+                        latitude: business.coordinates?.latitude ?? -12.8024,
+                        longitude: business.coordinates?.longitude ?? 28.2132,
+                      }}
                       zoom={15}
                       heightClass="h-[200px] sm:h-[230px]"
                       showMapTypeControl={false}
@@ -1019,7 +1061,9 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                     <p className="text-stone-500 dark:text-stone-400">{business.province} Province, Zambia</p>
                   </div>
                   <div className="pt-2 border-t border-stone-200/80 dark:border-stone-800 text-[11px] font-mono text-stone-500 dark:text-stone-400 flex items-center justify-between">
-                    <span>GPS: {business.coordinates.latitude.toFixed(4)}, {business.coordinates.longitude.toFixed(4)}</span>
+                    <span>
+                      GPS: {(business.coordinates?.latitude ?? -12.8024).toFixed(4)}, {(business.coordinates?.longitude ?? 28.2132).toFixed(4)}
+                    </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
@@ -1049,14 +1093,20 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                     <span>Opening Hours</span>
                   </h4>
                   <div className="space-y-1.5 text-xs">
-                    {business.hours.map((h, i) => (
-                      <div key={i} className="flex items-center justify-between text-stone-600">
-                        <span className="font-medium text-stone-700">{h.day}</span>
-                        <span className={h.isClosed ? 'text-stone-400' : 'text-stone-900 font-mono'}>
-                          {h.isClosed ? 'Closed' : `${h.open} – ${h.close}`}
-                        </span>
+                    {business.hours && business.hours.length > 0 ? (
+                      business.hours.map((h, i) => (
+                        <div key={i} className="flex items-center justify-between text-stone-600">
+                          <span className="font-medium text-stone-700">{h.day}</span>
+                          <span className={h.isClosed ? 'text-stone-400' : 'text-stone-900 font-mono'}>
+                            {h.isClosed ? 'Closed' : `${h.open} – ${h.close}`}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-stone-500 italic py-1 text-xs">
+                        Operating hours not listed. Contact business directly via phone or WhatsApp.
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 
@@ -1142,54 +1192,134 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {business.products.map((prod) => (
-                    <div
-                      key={prod.id}
-                      className="p-4 bg-white border border-stone-200 rounded-xl flex flex-col justify-between hover:border-emerald-300 transition-colors shadow-2xs"
-                    >
-                      <div>
-                        {prod.category && (
-                          <span className="text-[11px] uppercase tracking-wider text-stone-400 font-semibold">
-                            {prod.category}
-                          </span>
-                        )}
-                        <h4 className="font-semibold text-stone-900 text-sm mt-0.5">
-                          {prod.name}
-                        </h4>
-                        {prod.description && (
-                          <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-                            {prod.description}
-                          </p>
-                        )}
-                      </div>
+                  {(business.products || []).map((prod) => {
+                    const activeVariant = selectedVariants[prod.id] || (prod.variants && prod.variants[0]);
+                    const currentPrice = prod.price + (activeVariant?.priceAdjustment || 0);
+                    const stock = activeVariant?.stock ?? prod.stockQuantity;
 
-                      <div className="pt-3 mt-4 border-t border-stone-100 flex flex-col gap-2">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-[11px] text-stone-400 block">Price</span>
-                            <span className="text-base font-mono font-bold text-stone-900">
-                              {prod.currency} {prod.price.toLocaleString()}
-                            </span>
+                    return (
+                      <div
+                        key={prod.id}
+                        className="p-4 bg-white border border-stone-200 rounded-xl flex flex-col justify-between hover:border-emerald-300 transition-colors shadow-2xs"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            {prod.category && (
+                              <span className="text-[11px] uppercase tracking-wider text-stone-400 font-semibold truncate">
+                                {prod.category}
+                              </span>
+                            )}
+                            {prod.sku && (
+                              <span className="text-[10px] font-mono text-stone-400">
+                                SKU: {prod.sku}
+                              </span>
+                            )}
                           </div>
-                          <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                            In Stock
-                          </span>
+
+                          <h4 className="font-semibold text-stone-900 text-sm mt-0.5">
+                            {prod.name}
+                          </h4>
+                          {prod.description && (
+                            <p className="text-xs text-stone-600 mt-1 leading-relaxed line-clamp-2">
+                              {prod.description}
+                            </p>
+                          )}
+
+                          {/* Variant Selector */}
+                          {prod.variants && prod.variants.length > 0 && (
+                            <div className="mt-3 pt-2.5 border-t border-stone-100">
+                              <label className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+                                Select Variant / Size:
+                              </label>
+                              <div className="flex flex-wrap gap-1.5">
+                                {prod.variants.map((v) => {
+                                  const isSelected = (activeVariant?.id === v.id);
+                                  return (
+                                    <button
+                                      key={v.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedVariants((prev) => ({
+                                          ...prev,
+                                          [prod.id]: v,
+                                        }));
+                                      }}
+                                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold'
+                                          : 'bg-white border-stone-200 text-stone-700 hover:border-stone-400'
+                                      }`}
+                                    >
+                                      {v.name}
+                                      {v.priceAdjustment !== 0 && (
+                                        <span className="ml-1 text-[10px] text-stone-500 font-mono">
+                                          ({v.priceAdjustment > 0 ? `+K${v.priceAdjustment}` : `-K${Math.abs(v.priceAdjustment)}`})
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        <button
-                          onClick={() => {
-                            addToCart(prod, business.name);
-                            setAddedItemNotification(prod.name);
-                            setTimeout(() => setAddedItemNotification(null), 3000);
-                          }}
-                          className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs mt-1"
-                        >
-                          <ShoppingBag className="w-3.5 h-3.5" />
-                          <span>Add to Cart · Buy Now</span>
-                        </button>
+                        <div className="pt-3 mt-4 border-t border-stone-100 flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-[11px] text-stone-400 block">Price</span>
+                              <div className="flex items-baseline gap-1.5">
+                                <span className="text-base font-mono font-bold text-stone-900">
+                                  {prod.currency} {currentPrice.toLocaleString()}
+                                </span>
+                                {prod.compareAtPrice && prod.compareAtPrice > currentPrice && (
+                                  <span className="text-xs font-mono line-through text-stone-400">
+                                    {prod.currency} {prod.compareAtPrice.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Stock Indicator */}
+                            {stock !== undefined ? (
+                              stock <= 0 ? (
+                                <span className="text-[11px] font-semibold text-stone-600 bg-stone-100 px-2 py-0.5 rounded">
+                                  Out of Stock
+                                </span>
+                              ) : stock <= (prod.lowStockThreshold || 5) ? (
+                                <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                                  Low Stock · {stock} left
+                                </span>
+                              ) : (
+                                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                                  In Stock · {stock}
+                                </span>
+                              )
+                            ) : (
+                              <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                                In Stock
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              addToCart(prod, business.name, 1, activeVariant);
+                              setAddedItemNotification(
+                                activeVariant ? `${prod.name} (${activeVariant.name})` : prod.name
+                              );
+                              setTimeout(() => setAddedItemNotification(null), 3000);
+                            }}
+                            disabled={stock !== undefined && stock <= 0}
+                            className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs mt-1"
+                          >
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            <span>Add to Cart · Buy Now</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1213,7 +1343,7 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {business.services.map((serv) => (
+                  {(business.services || []).map((serv) => (
                     <div
                       key={serv.id}
                       className="p-4 bg-white border border-stone-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-emerald-300 transition-colors"
@@ -1280,7 +1410,7 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {business.promotions.map((promo) => (
+                  {(business.promotions || []).map((promo) => (
                     <div
                       key={promo.id}
                       className="p-5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-white border-2 border-amber-300 relative overflow-hidden"
@@ -1468,7 +1598,7 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
                     {business.name} – Live Interactive Google Map
                   </h3>
                   <p className="text-xs text-stone-400 font-mono truncate">
-                    Lat: {business.coordinates.latitude.toFixed(4)}, Lng: {business.coordinates.longitude.toFixed(4)} · {business.area}, {business.city}
+                    Lat: {(business.coordinates?.latitude ?? -12.8024).toFixed(4)}, Lng: {(business.coordinates?.longitude ?? 28.2132).toFixed(4)} · {business.area}, {business.city}
                   </p>
                 </div>
               </div>
@@ -1501,7 +1631,10 @@ export const BusinessProfileModal: React.FC<BusinessProfileModalProps> = ({
               <GoogleMapView
                 businesses={allBusinesses || [business]}
                 activeBusiness={business}
-                center={{ latitude: business.coordinates.latitude, longitude: business.coordinates.longitude }}
+                center={{
+                  latitude: business.coordinates?.latitude ?? -12.8024,
+                  longitude: business.coordinates?.longitude ?? 28.2132,
+                }}
                 zoom={15}
                 heightClass="h-full w-full"
                 showMapTypeControl={true}

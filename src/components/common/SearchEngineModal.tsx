@@ -19,6 +19,7 @@ import {
 import { Business, Category, LocationArea, Professional } from '../../types';
 import { DATABASE_CATEGORIES } from '../../services/dbSeeder';
 import { optimizeBusinessImage, DEFAULT_BUSINESS_COVER } from '../../lib/images/imageOptimizer';
+import { searchBusinesses, parseSearchQuery } from '../../utils/searchEngine';
 
 interface SearchEngineModalProps {
   isOpen: boolean;
@@ -129,58 +130,29 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
     };
   }, [query, currentLocation, maxDistance]);
 
-  // Filtered businesses
-  const matchedBusinesses = useMemo(() => {
-    if (!query.trim() && selectedCategory === 'all') return businesses.slice(0, 4);
-
-    return businesses.filter((b) => {
-      const q = query.toLowerCase();
-      const matchText =
-        !query.trim() ||
-        b.name.toLowerCase().includes(q) ||
-        b.tagline.toLowerCase().includes(q) ||
-        b.categoryName.toLowerCase().includes(q) ||
-        b.city.toLowerCase().includes(q) ||
-        b.products?.some((p) => p.name.toLowerCase().includes(q)) ||
-        b.services?.some((s) => s.name.toLowerCase().includes(q));
-
-      const matchCategory =
-        selectedCategory === 'all' ||
-        b.categoryId === selectedCategory ||
-        (selectedCategory === 'cat-hospital' && (b.categoryId === 'cat-hospital' || b.categoryName.toLowerCase().includes('hospital'))) ||
-        (selectedCategory === 'cat-private-clinic' && (b.categoryId === 'cat-private-clinic' || b.categoryName.toLowerCase().includes('clinic')));
-
-      const matchVerified = !onlyVerified || b.verificationStatus === 'verified';
-      const matchOpenNow = !openNowOnly || b.isOpenNow;
-      const matchHighestRated = !highestRatedOnly || (b.rating || 0) >= 4.5;
-      const matchDelivery =
-        !offersDeliveryOnly ||
-        b.tags?.some((t) => t.toLowerCase().includes('delivery')) ||
-        b.attributes?.some((a) => a.toLowerCase().includes('delivery')) ||
-        b.description?.toLowerCase().includes('delivery');
-
-      const matchDistance = (b.distanceKm || 0) <= maxDistance;
-
-      return (
-        matchText &&
-        matchCategory &&
-        matchVerified &&
-        matchOpenNow &&
-        matchHighestRated &&
-        matchDelivery &&
-        matchDistance
-      );
+  // Filtered businesses using weighted search engine
+  const searchResults = useMemo(() => {
+    return searchBusinesses(businesses, query, currentLocation, {
+      category: selectedCategory,
+      verifiedOnly: onlyVerified,
+      openNowOnly,
+      maxDistanceKm: maxDistance,
+      offersDeliveryOnly,
     });
   }, [
     businesses,
     query,
+    currentLocation,
     selectedCategory,
     onlyVerified,
     openNowOnly,
-    highestRatedOnly,
-    offersDeliveryOnly,
     maxDistance,
+    offersDeliveryOnly,
   ]);
+
+  const matchedBusinesses = useMemo(() => {
+    return searchResults.map((r) => r.business);
+  }, [searchResults]);
 
   // Filtered professionals
   const matchedProfessionals = useMemo(() => {
@@ -432,11 +404,34 @@ export const SearchEngineModal: React.FC<SearchEngineModalProps> = ({
             </div>
 
             {matchedBusinesses.length === 0 ? (
-              <div className="p-6 text-center text-stone-500 bg-stone-50 rounded-lg border border-dashed border-stone-200">
-                <p className="text-sm font-medium text-stone-700">No businesses found matching query</p>
-                <p className="text-xs text-stone-400 mt-1">
-                  Try broadening your search term or adjusting the distance filter beyond {maxDistance} km.
-                </p>
+              <div className="p-6 text-center text-stone-600 bg-stone-50 rounded-xl border border-stone-200 space-y-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto">
+                  <Search className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-stone-900">No places found matching "{query}" within {maxDistance} km</p>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md mx-auto">
+                    Try expanding your search radius to explore all of Zambia or choose from popular nearby categories.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                  <button
+                    onClick={() => setMaxDistance(500)}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    Expand to All Zambia (500 km)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setQuery('');
+                      setSelectedCategory('all');
+                      setMaxDistance(25);
+                    }}
+                    className="px-3 py-1.5 bg-white border border-stone-300 hover:bg-stone-100 text-stone-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-2">

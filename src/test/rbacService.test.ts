@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { getCapabilitiesForRole, STAFF_TIER_PERMISSIONS } from '../services/rbacService';
+import {
+  getCapabilitiesForRole,
+  STAFF_TIER_PERMISSIONS,
+  isSuperAdminEmail,
+  hasSuperAdminPrivileges,
+  SUPER_ADMIN_EMAIL,
+} from '../services/rbacService';
 import { UserRole } from '../types';
 
 describe('Platform User Types & RBAC Specification', () => {
@@ -96,5 +102,43 @@ describe('Platform User Types & RBAC Specification', () => {
     expect(caps.managePlatformConfig).toBe(true);
     expect(caps.auditSystemActivity).toBe(true);
     expect(caps.reviewReportedContent).toBe(true);
+    expect(caps.superAdminRootAccess).toBe(false);
+  });
+
+  it('G. Super Administrator is strictly exclusive to m.mumba8@gmail.com with ALL privileges granted', () => {
+    expect(SUPER_ADMIN_EMAIL).toBe('m.mumba8@gmail.com');
+
+    // Email check verification
+    expect(isSuperAdminEmail('m.mumba8@gmail.com')).toBe(true);
+    expect(isSuperAdminEmail('M.MUMBA8@GMAIL.COM')).toBe(true);
+    expect(isSuperAdminEmail('admin@bwana.africa')).toBe(false);
+    expect(isSuperAdminEmail('other@gmail.com')).toBe(false);
+    expect(isSuperAdminEmail(undefined)).toBe(false);
+
+    // Privileges check
+    expect(hasSuperAdminPrivileges('m.mumba8@gmail.com')).toBe(true);
+    expect(hasSuperAdminPrivileges({ email: 'm.mumba8@gmail.com' })).toBe(true);
+    expect(hasSuperAdminPrivileges('admin@bwana.africa')).toBe(false);
+    expect(hasSuperAdminPrivileges({ email: 'other@bwana.africa', role: 'admin' })).toBe(false);
+
+    // Capabilities check for m.mumba8@gmail.com
+    const mumbaCaps = getCapabilitiesForRole('super_admin', 'm.mumba8@gmail.com');
+    expect(mumbaCaps.superAdminRootAccess).toBe(true);
+    expect(mumbaCaps.manageAdminRoles).toBe(true);
+    expect(mumbaCaps.manageDatabaseSeeder).toBe(true);
+    expect(mumbaCaps.manageRelationalWorkbench).toBe(true);
+    expect(mumbaCaps.overrideAnyVerification).toBe(true);
+    expect(mumbaCaps.fullPlatformAdministration).toBe(true);
+
+    // Even if m.mumba8@gmail.com logs in with a different role tag, all privileges are still granted
+    const mumbaUserCaps = getCapabilitiesForRole('registered_user', 'm.mumba8@gmail.com');
+    expect(mumbaUserCaps.superAdminRootAccess).toBe(true);
+    expect(mumbaUserCaps.manageAdminRoles).toBe(true);
+
+    // Imposter privilege escalation prevention: non-mumba user claiming super_admin role
+    const imposterCaps = getCapabilitiesForRole('super_admin', 'hacker@example.com');
+    expect(imposterCaps.superAdminRootAccess).toBe(false);
+    expect(imposterCaps.manageAdminRoles).toBe(false);
   });
 });
+

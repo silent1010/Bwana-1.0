@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Store,
@@ -25,6 +25,8 @@ import {
   registerUserAccount,
   registerBusinessAccount
 } from '../../services/firebase';
+import { OtpVerificationModal } from './OtpVerificationModal';
+import { createOtpSession, OtpSession } from '../../utils/accountService';
 
 interface UnifiedAuthModalProps {
   isOpen: boolean;
@@ -46,11 +48,24 @@ export const UnifiedAuthModal: React.FC<UnifiedAuthModalProps> = ({
   const [persona, setPersona] = useState<'customer' | 'business'>(initialPersona);
   const [mode, setMode] = useState<'signin' | 'register'>(initialMode);
 
+  // Synchronize persona and mode whenever modal is opened
+  useEffect(() => {
+    if (isOpen) {
+      setPersona(initialPersona);
+      setMode(initialMode);
+      setError(null);
+      setSuccessMsg(null);
+    }
+  }, [isOpen, initialPersona, initialMode]);
+
   // Customer state
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPassword, setCustomerPassword] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerOtpChannel, setCustomerOtpChannel] = useState<'whatsapp' | 'sms' | 'email'>('whatsapp');
+  const [pendingOtpSession, setPendingOtpSession] = useState<OtpSession | null>(null);
+  const [registeredPendingUser, setRegisteredPendingUser] = useState<any>(null);
 
   // Business state
   const [bizStep, setBizStep] = useState<1 | 2>(1);
@@ -79,29 +94,67 @@ export const UnifiedAuthModal: React.FC<UnifiedAuthModalProps> = ({
     setIsLoading(true);
 
     try {
+      const cleanEmail = customerEmail.trim().toLowerCase();
+      const isSuperAdmin = cleanEmail === 'm.mumba8@gmail.com';
+
       if (mode === 'signin') {
         const user = await signInWithEmail(customerEmail, customerPassword);
-        onLoginSuccess(customerEmail, 'registered_user', user.displayName || customerEmail.split('@')[0]);
+        const resolvedRole: UserRole = isSuperAdmin ? 'super_admin' : (user?.role || 'registered_user');
+        const displayName =
+          user?.displayName ||
+          (isSuperAdmin ? 'Super Administrator (M. Mumba)' : customerEmail.split('@')[0]);
+
+        onLoginSuccess(customerEmail, resolvedRole, displayName);
         onClose();
       } else {
         if (!customerName.trim() || !customerEmail.trim()) {
           throw new Error('Please enter your full name and email address.');
         }
-        const user = await registerUserAccount({
+
+        // Determine destination recipient for selected OTP channel
+        const recipient =
+          customerOtpChannel === 'email'
+            ? customerEmail
+            : customerPhone.trim() || customerEmail;
+
+        const session = createOtpSession(recipient, customerOtpChannel, 'registration');
+        setPendingOtpSession(session);
+        setRegisteredPendingUser({
           email: customerEmail,
           password: customerPassword,
           name: customerName,
           phone: customerPhone,
         });
-        setSuccessMsg('Account created successfully! Signing in...');
-        setTimeout(() => {
-          onLoginSuccess(customerEmail, 'registered_user', customerName);
-          onClose();
-        }, 600);
       }
     } catch (err: any) {
       console.error('Customer auth error:', err);
       setError(err?.message || 'Authentication failed. Please verify your details.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOtpVerified = async () => {
+    if (!registeredPendingUser) return;
+    setIsLoading(true);
+    try {
+      const user = await registerUserAccount(registeredPendingUser);
+      setSuccessMsg(`Account created successfully! Account No: ${user.accountNumber || 'BWN-Active'}`);
+      setPendingOtpSession(null);
+      const cleanEmail = registeredPendingUser.email.trim().toLowerCase();
+      const isSuperAdmin = cleanEmail === 'm.mumba8@gmail.com';
+      const resolvedRole: UserRole = isSuperAdmin ? 'super_admin' : (user?.role || 'registered_user');
+
+      setTimeout(() => {
+        onLoginSuccess(
+          registeredPendingUser.email,
+          resolvedRole,
+          isSuperAdmin ? 'Super Administrator (M. Mumba)' : registeredPendingUser.name
+        );
+        onClose();
+      }, 700);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to complete registration.');
     } finally {
       setIsLoading(false);
     }
@@ -123,9 +176,17 @@ export const UnifiedAuthModal: React.FC<UnifiedAuthModalProps> = ({
 
     setIsLoading(true);
     try {
+      const cleanBizEmail = bizEmail.trim().toLowerCase();
+      const isSuperAdmin = cleanBizEmail === 'm.mumba8@gmail.com';
+
       if (mode === 'signin') {
         const user = await signInWithEmail(bizEmail, bizPassword);
-        onLoginSuccess(bizEmail, 'business_owner', user.displayName || bizEmail.split('@')[0]);
+        const resolvedRole: UserRole = isSuperAdmin ? 'super_admin' : 'business_owner';
+        onLoginSuccess(
+          bizEmail,
+          resolvedRole,
+          user.displayName || (isSuperAdmin ? 'Super Administrator (M. Mumba)' : bizEmail.split('@')[0])
+        );
         onClose();
       } else {
         if (!bizEmail.trim() || !bizPhone.trim()) {
@@ -168,8 +229,18 @@ export const UnifiedAuthModal: React.FC<UnifiedAuthModalProps> = ({
     setIsLoading(true);
     try {
       const user = await signInWithGooglePopup();
-      const role: UserRole = persona === 'business' ? 'business_owner' : 'registered_user';
-      onLoginSuccess(user.email || 'user@bwana.zm', role, user.displayName || 'Bwana Member');
+      const userEmail = user.email || 'user@bwana.zm';
+      const isSuperAdmin = userEmail.toLowerCase() === 'm.mumba8@gmail.com';
+      const role: UserRole = isSuperAdmin
+        ? 'super_admin'
+        : persona === 'business'
+        ? 'business_owner'
+        : 'registered_user';
+      onLoginSuccess(
+        userEmail,
+        role,
+        user.displayName || (isSuperAdmin ? 'Super Administrator (M. Mumba)' : 'Bwana Member')
+      );
       onClose();
     } catch (err: any) {
       console.warn('Google Auth popup notice:', err);
@@ -372,21 +443,65 @@ export const UnifiedAuthModal: React.FC<UnifiedAuthModalProps> = ({
               </div>
 
               {mode === 'register' && (
-                <div>
-                  <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                    Phone Number (Optional)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="tel"
-                      placeholder="+260 97 123 4567"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full pl-9 pr-3.5 py-2 text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-                    />
-                    <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                      Phone Number (for WhatsApp / SMS Verification)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        placeholder="+260 97 123 4567"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        className="w-full pl-9 pr-3.5 py-2 text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                      />
+                      <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-2.5" />
+                    </div>
                   </div>
-                </div>
+
+                  {/* Preferred OTP Verification Delivery Method */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300">
+                      Send 4-Digit Security Code via:
+                    </label>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setCustomerOtpChannel('whatsapp')}
+                        className={`py-2 px-2 rounded-xl border text-center transition-all cursor-pointer ${
+                          customerOtpChannel === 'whatsapp'
+                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold'
+                            : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-400'
+                        }`}
+                      >
+                        WhatsApp
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCustomerOtpChannel('sms')}
+                        className={`py-2 px-2 rounded-xl border text-center transition-all cursor-pointer ${
+                          customerOtpChannel === 'sms'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 font-bold'
+                            : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-400'
+                        }`}
+                      >
+                        Direct SMS
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCustomerOtpChannel('email')}
+                        className={`py-2 px-2 rounded-xl border text-center transition-all cursor-pointer ${
+                          customerOtpChannel === 'email'
+                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 font-bold'
+                            : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-400'
+                        }`}
+                      >
+                        Email
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
 
               <div>
@@ -696,6 +811,25 @@ export const UnifiedAuthModal: React.FC<UnifiedAuthModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* 4-Digit First-Time User Registration OTP Verification Modal */}
+      {pendingOtpSession && (
+        <OtpVerificationModal
+          isOpen={Boolean(pendingOtpSession)}
+          session={pendingOtpSession}
+          title="Verify Account & Phone/Email"
+          subtitle={`Enter the 4-digit code sent via ${customerOtpChannel.toUpperCase()} to activate your Bwana account.`}
+          onSuccess={handleOtpVerified}
+          onCancel={() => setPendingOtpSession(null)}
+          onResendCode={(channel) => {
+            const recipient =
+              channel === 'email'
+                ? customerEmail
+                : customerPhone.trim() || customerEmail;
+            return createOtpSession(recipient, channel, 'registration');
+          }}
+        />
+      )}
     </div>
   );
 };

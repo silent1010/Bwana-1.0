@@ -131,15 +131,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   // Ensure all businesses have precise distance from current location & sort ascending
   const sortedByProximity = [...businesses]
     .map((b) => {
+      const userLat = currentLocation?.coordinates?.latitude ?? -12.8024;
+      const userLng = currentLocation?.coordinates?.longitude ?? 28.2132;
+      const bLat = b.coordinates?.latitude ?? -12.8024;
+      const bLng = b.coordinates?.longitude ?? 28.2132;
       const dist =
         typeof b.distanceKm === 'number' && b.distanceKm >= 0
           ? b.distanceKm
-          : calculateDistanceKm(
-              currentLocation.coordinates.latitude,
-              currentLocation.coordinates.longitude,
-              b.coordinates.latitude,
-              b.coordinates.longitude
-            );
+          : calculateDistanceKm(userLat, userLng, bLat, bLng);
       return { ...b, distanceKm: dist };
     })
     .sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));

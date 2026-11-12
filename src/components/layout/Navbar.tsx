@@ -86,7 +86,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { totalItems } = useCart();
 
   const isBusinessOwner = currentRole === 'business' || currentRole === 'business_owner';
-  const isAdmin = currentRole === 'admin';
+  const isSuperAdmin = currentRole === 'super_admin';
+  const isAdmin = currentRole === 'admin' || isSuperAdmin;
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 dark:bg-stone-900/95 text-stone-900 dark:text-stone-100 border-b border-stone-200 dark:border-stone-800 shadow-xs backdrop-blur-md transition-colors duration-200">
@@ -112,7 +113,29 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-2.5 text-xs truncate">
             {isAuthenticated ? (
               <div className="flex items-center gap-2">
-                {isNrcVerified ? (
+                {isSuperAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentTab('admin_dashboard')}
+                    className="flex items-center gap-1.5 text-[11px] text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/80 border border-amber-400 dark:border-amber-700/80 px-2.5 py-0.5 rounded-md font-bold hover:bg-amber-200 dark:hover:bg-amber-900 transition-colors cursor-pointer shadow-2xs"
+                    title="Super Administrator Root Privilege Active (M. Mumba). Click to open Administration Panel."
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span className="hidden sm:inline font-bold">Root Clearance:</span>
+                    <span>Super Admin</span>
+                  </button>
+                ) : isBusinessOwner ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentTab('business_dashboard')}
+                    className="flex items-center gap-1.5 text-[11px] text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-700/80 px-2.5 py-0.5 rounded-md font-bold hover:bg-emerald-200 dark:hover:bg-emerald-900 transition-colors cursor-pointer"
+                    title="Active Business Merchant. Click to open your Business Dashboard."
+                  >
+                    <Store className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="hidden sm:inline font-bold">Business Profile:</span>
+                    <span>Dashboard Active</span>
+                  </button>
+                ) : isNrcVerified ? (
                   <button
                     type="button"
                     onClick={() => setCurrentTab('user_dashboard')}
@@ -218,6 +241,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Compass className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>Discover</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCurrentTab('following')}
+            className={`px-3 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+              currentTab === 'following'
+                ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 font-bold'
+                : 'hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800'
+            }`}
+            title="Updates, deals & drops from businesses you follow"
+          >
+            <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Following</span>
           </button>
 
           <button
@@ -388,8 +425,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Authenticated User / Business Actions */}
           {isAuthenticated ? (
             <div className="flex items-center gap-1.5">
-              {/* If Regular User */}
-              {currentRole === 'user' && (
+              {/* If Regular Shopper / Resident User */}
+              {(currentRole === 'user' || currentRole === 'registered_user') && !isBusinessOwner && (
                 <button
                   type="button"
                   onClick={() => setCurrentTab('user_dashboard')}
@@ -425,20 +462,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {/* If Admin */}
+              {/* If Admin / Super Admin */}
               {isAdmin && (
                 <button
                   type="button"
                   onClick={() => setCurrentTab('admin_dashboard')}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${
                     currentTab === 'admin_dashboard'
-                      ? 'bg-rose-600 text-white'
+                      ? isSuperAdmin
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-rose-600 text-white'
+                      : isSuperAdmin
+                      ? 'bg-amber-50 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-400 dark:border-amber-700/80 hover:bg-amber-100'
                       : 'bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 hover:bg-rose-100'
                   }`}
-                  title="Open Admin Verification Desk"
+                  title={isSuperAdmin ? "Super Admin Root Access (M. Mumba)" : "Open Admin Verification Desk"}
                 >
-                  <ShieldCheck className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                  <span className="hidden sm:inline">Admin</span>
+                  <ShieldCheck className={`w-4 h-4 ${isSuperAdmin ? 'text-amber-500' : 'text-rose-600 dark:text-rose-400'}`} />
+                  <span className="hidden sm:inline">{isSuperAdmin ? 'Super Admin' : 'Admin'}</span>
                 </button>
               )}
 
@@ -506,6 +547,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Compass className="w-4 h-4 shrink-0" />
           <span>Discover</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCurrentTab('following')}
+          className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 font-medium shrink-0 ${
+            currentTab === 'following'
+              ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+              : 'text-stone-700 dark:text-stone-300 hover:text-stone-950 dark:hover:text-white bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 shrink-0" />
+          <span>Following</span>
         </button>
 
         <button
@@ -630,12 +684,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={isAdmin ? () => setCurrentTab('admin_dashboard') : onOpenAdminGate}
           className={`px-3 py-1.5 rounded-lg whitespace-nowrap cursor-pointer flex items-center gap-1.5 font-medium transition-colors shrink-0 ${
             currentTab === 'admin_dashboard'
-              ? 'bg-rose-600 text-white font-bold shadow-2xs'
+              ? isSuperAdmin
+                ? 'bg-amber-600 text-white font-bold shadow-2xs'
+                : 'bg-rose-600 text-white font-bold shadow-2xs'
+              : isSuperAdmin
+              ? 'text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60'
               : 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60'
           }`}
         >
-          <Lock className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
-          <span>Admin</span>
+          <Lock className={`w-4 h-4 shrink-0 ${isSuperAdmin ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`} />
+          <span>{isSuperAdmin ? 'Super Admin' : 'Admin'}</span>
         </button>
 
         {/* Architecture Spec */}

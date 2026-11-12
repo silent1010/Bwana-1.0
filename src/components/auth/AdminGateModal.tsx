@@ -24,7 +24,7 @@ export const AdminGateModal: React.FC<AdminGateModalProps> = ({
   onAdminAuthSuccess,
 }) => {
   const [securityKey, setSecurityKey] = useState('');
-  const [adminEmail, setAdminEmail] = useState('admin@bwana.africa');
+  const [adminEmail, setAdminEmail] = useState('m.mumba8@gmail.com');
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<'key' | 'totp'>('key');
@@ -61,12 +61,15 @@ export const AdminGateModal: React.FC<AdminGateModalProps> = ({
   const handleFinalAuth = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    const cleanEmail = (adminEmail || 'm.mumba8@gmail.com').trim().toLowerCase();
+    const isSuperAdmin = cleanEmail === 'm.mumba8@gmail.com';
+
     setTimeout(() => {
       setIsLoading(false);
       onAdminAuthSuccess(
-        adminEmail,
-        'admin',
-        'Bwana Platform Administrator'
+        adminEmail || 'm.mumba8@gmail.com',
+        isSuperAdmin ? 'super_admin' : 'admin',
+        isSuperAdmin ? 'Super Administrator (M. Mumba)' : 'Platform Administrator'
       );
       onClose();
     }, 350);
@@ -74,9 +77,9 @@ export const AdminGateModal: React.FC<AdminGateModalProps> = ({
 
   const handleFastTrackAdmin = () => {
     onAdminAuthSuccess(
-      'admin@bwana.africa',
-      'admin',
-      'Bwana Platform Administrator'
+      'm.mumba8@gmail.com',
+      'super_admin',
+      'Super Administrator (M. Mumba)'
     );
     onClose();
   };

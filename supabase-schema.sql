@@ -1,195 +1,339 @@
--- ====================================================================
--- BWANA PLATFORM: SUPABASE POSTGRESQL SCHEMA WITH ROW LEVEL SECURITY
--- Generated for Zambian Commercial Discovery & Logistics Network
--- ====================================================================
+-- ==============================================================================
+-- BWANA PLATFORM: SUPABASE POSTGRESQL PRODUCTION MIGRATION & RLS POLICIES
+-- Target: Supabase PostgreSQL 16+ & PostGIS 3.x
+-- ==============================================================================
 
--- 1. Enable UUID Extension
+-- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "postgis";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
--- 2. Businesses Table
+-- 2. GEOGRAPHIC HIERARCHY
+CREATE TABLE IF NOT EXISTS public.countries (
+    id TEXT PRIMARY KEY,
+    iso_code_2 VARCHAR(2) NOT NULL UNIQUE,
+    iso_code_3 VARCHAR(3) NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    currency_code VARCHAR(3) NOT NULL DEFAULT 'ZMW',
+    dial_code VARCHAR(10) NOT NULL DEFAULT '+260',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO public.countries (id, iso_code_2, iso_code_3, name, currency_code, dial_code)
+VALUES ('ZM', 'ZM', 'ZMB', 'Zambia', 'ZMW', '+260')
+ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS public.administrative_areas (
+    id TEXT PRIMARY KEY,
+    country_id TEXT NOT NULL REFERENCES public.countries(id) ON DELETE RESTRICT,
+    parent_id TEXT REFERENCES public.administrative_areas(id) ON DELETE RESTRICT,
+    name TEXT NOT NULL,
+    area_type TEXT NOT NULL CHECK (area_type IN ('province', 'district', 'ward', 'zone')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_admin_area_country UNIQUE (id, country_id),
+    CONSTRAINT chk_admin_area_no_self_parent CHECK (parent_id IS NULL OR parent_id <> id)
+);
+
+CREATE TABLE IF NOT EXISTS public.locations (
+    id TEXT PRIMARY KEY,
+    country_id TEXT NOT NULL REFERENCES public.countries(id) ON DELETE RESTRICT,
+    administrative_area_id TEXT REFERENCES public.administrative_areas(id) ON DELETE RESTRICT,
+    name TEXT NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    geom GEOGRAPHY(Point, 4326) GENERATED ALWAYS AS (
+        ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography
+    ) STORED,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_locations_area_country 
+        FOREIGN KEY (administrative_area_id, country_id) 
+        REFERENCES public.administrative_areas(id, country_id) 
+        ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_locations_geom_gist ON public.locations USING GIST (geom);
+
+-- 3. USERS & PROFILES
+CREATE TABLE IF NOT EXISTS public.users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE,
+    phone TEXT UNIQUE,
+    full_name TEXT NOT NULL,
+    avatar_url TEXT,
+    national_id_masked TEXT,
+    is_nrc_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    platform_role TEXT NOT NULL DEFAULT 'user' CHECK (platform_role IN ('user', 'merchant', 'scout', 'moderator', 'admin', 'super_admin')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 4. CATEGORIES
+CREATE TABLE IF NOT EXISTS public.categories (
+    id TEXT PRIMARY KEY,
+    parent_id TEXT REFERENCES public.categories(id) ON DELETE RESTRICT,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    icon_name TEXT,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_categories_no_self_parent CHECK (parent_id IS NULL OR parent_id <> id)
+);
+
+-- 5. BUSINESSES
 CREATE TABLE IF NOT EXISTS public.businesses (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
     tagline TEXT,
     description TEXT,
-    category_id TEXT NOT NULL,
-    category_name TEXT NOT NULL,
-    secondary_categories JSONB DEFAULT '[]'::jsonb,
-    verification_status TEXT DEFAULT 'unverified' CHECK (verification_status IN ('unverified', 'claimed', 'verified')),
-    verification_tier TEXT DEFAULT 'unverified',
-    rating NUMERIC(3, 2) DEFAULT 5.0,
-    reviews_count INTEGER DEFAULT 0,
-    phone TEXT NOT NULL,
-    whatsapp TEXT,
-    email TEXT,
-    website TEXT,
-    address TEXT NOT NULL,
-    country TEXT DEFAULT 'Zambia',
-    country_code TEXT DEFAULT 'ZM',
-    province TEXT NOT NULL,
-    city TEXT NOT NULL,
-    area TEXT NOT NULL,
-    latitude DOUBLE PRECISION NOT NULL,
-    longitude DOUBLE PRECISION NOT NULL,
-    cover_image TEXT,
-    gallery_images JSONB DEFAULT '[]'::jsonb,
-    is_open_now BOOLEAN DEFAULT TRUE,
-    hours JSONB DEFAULT '[]'::jsonb,
-    claimed_by_user_id TEXT,
-    products JSONB DEFAULT '[]'::jsonb,
-    services JSONB DEFAULT '[]'::jsonb,
-    promotions JSONB DEFAULT '[]'::jsonb,
-    features JSONB DEFAULT '[]'::jsonb,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    primary_category_id TEXT NOT NULL REFERENCES public.categories(id) ON DELETE RESTRICT,
+    verification_status TEXT NOT NULL DEFAULT 'unverified' CHECK (verification_status IN ('unverified', 'pending', 'claimed', 'verified')),
+    pacra_registration_no TEXT,
+    tpin_number TEXT,
+    created_by TEXT REFERENCES public.users(id) ON DELETE SET NULL,
+    rating NUMERIC(3, 2) NOT NULL DEFAULT 5.0,
+    reviews_count INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Index for geolocation queries & categories
-CREATE INDEX IF NOT EXISTS idx_businesses_city ON public.businesses(city);
-CREATE INDEX IF NOT EXISTS idx_businesses_category ON public.businesses(category_id);
-CREATE INDEX IF NOT EXISTS idx_businesses_coords ON public.businesses(latitude, longitude);
+CREATE INDEX IF NOT EXISTS idx_businesses_name_trgm ON public.businesses USING GIN (name gin_trgm_ops);
 
--- 3. Customer Reviews Table
+-- Business Members & Roles (Guarantees owner invariant)
+CREATE TABLE IF NOT EXISTS public.business_members (
+    business_id TEXT NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('owner', 'admin', 'manager', 'staff')),
+    is_primary_owner BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'invited', 'suspended')),
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (business_id, user_id)
+);
+
+-- Auto-grant owner role to creator
+CREATE OR REPLACE FUNCTION public.auto_assign_business_creator_owner()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.created_by IS NOT NULL THEN
+        INSERT INTO public.business_members (business_id, user_id, role, is_primary_owner, status)
+        VALUES (NEW.id, NEW.created_by, 'owner', TRUE, 'active')
+        ON CONFLICT (business_id, user_id) 
+        DO UPDATE SET role = 'owner', is_primary_owner = TRUE, status = 'active';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_auto_assign_business_owner ON public.businesses;
+CREATE TRIGGER trg_auto_assign_business_owner
+    AFTER INSERT ON public.businesses
+    FOR EACH ROW
+    EXECUTE FUNCTION public.auto_assign_business_creator_owner();
+
+-- 6. BUSINESS LOCATIONS / BRANCHES (Composite Unique Key)
+CREATE TABLE IF NOT EXISTS public.business_locations (
+    id TEXT PRIMARY KEY,
+    business_id TEXT NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+    location_id TEXT REFERENCES public.locations(id) ON DELETE SET NULL,
+    branch_name TEXT NOT NULL DEFAULT 'Main Branch',
+    address TEXT NOT NULL,
+    area TEXT NOT NULL,
+    city TEXT NOT NULL,
+    province TEXT NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    geom GEOGRAPHY(Point, 4326) GENERATED ALWAYS AS (
+        ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography
+    ) STORED,
+    is_open_now BOOLEAN NOT NULL DEFAULT TRUE,
+    opening_hours JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_business_location_id_business UNIQUE (id, business_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_business_locations_geom_gist ON public.business_locations USING GIST (geom);
+
+-- 7. CATALOG ITEMS (Composite FK)
+CREATE TABLE IF NOT EXISTS public.catalog_items (
+    id TEXT PRIMARY KEY,
+    business_id TEXT NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+    business_location_id TEXT,
+    name TEXT NOT NULL,
+    description TEXT,
+    price_minor_units BIGINT NOT NULL CHECK (price_minor_units >= 0),
+    currency_code VARCHAR(3) NOT NULL DEFAULT 'ZMW',
+    is_in_stock BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_catalog_items_branch_business 
+        FOREIGN KEY (business_location_id, business_id) 
+        REFERENCES public.business_locations(id, business_id) 
+        ON DELETE CASCADE
+);
+
+-- 8. REVIEWS & RESPONSES (Composite FK)
 CREATE TABLE IF NOT EXISTS public.reviews (
     id TEXT PRIMARY KEY,
     business_id TEXT NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
-    user_id TEXT NOT NULL,
-    user_name TEXT NOT NULL,
-    user_avatar TEXT,
+    business_location_id TEXT,
+    author_user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment TEXT NOT NULL,
     tags JSONB DEFAULT '[]'::jsonb,
     photos JSONB DEFAULT '[]'::jsonb,
-    helpful_count INTEGER DEFAULT 0,
-    verified_visit BOOLEAN DEFAULT FALSE,
-    is_nrc_verified BOOLEAN DEFAULT FALSE,
-    nrc_number_masked TEXT,
-    response JSONB,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    helpful_count INTEGER NOT NULL DEFAULT 0,
+    verified_visit BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_author_business_review UNIQUE (author_user_id, business_id),
+    CONSTRAINT uq_review_id_business UNIQUE (id, business_id),
+    CONSTRAINT fk_reviews_branch_business 
+        FOREIGN KEY (business_location_id, business_id) 
+        REFERENCES public.business_locations(id, business_id) 
+        ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_reviews_business_id ON public.reviews(business_id);
+CREATE TABLE IF NOT EXISTS public.review_responses (
+    id TEXT PRIMARY KEY,
+    review_id TEXT NOT NULL UNIQUE,
+    business_id TEXT NOT NULL,
+    responder_user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
+    response_text TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_review_responses_review_business 
+        FOREIGN KEY (review_id, business_id) 
+        REFERENCES public.reviews(id, business_id) 
+        ON DELETE CASCADE
+);
 
--- 4. Statutory Verification Requests (PACRA & ZRA)
-CREATE TABLE IF NOT EXISTS public.verifications (
+-- 9. PROMOTIONS (Composite FK)
+CREATE TABLE IF NOT EXISTS public.promotions (
     id TEXT PRIMARY KEY,
     business_id TEXT NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
-    business_name TEXT NOT NULL,
-    applicant_name TEXT NOT NULL,
-    applicant_email TEXT NOT NULL,
-    applicant_phone TEXT NOT NULL,
-    pacra_registration_no TEXT NOT NULL,
-    tpin_number TEXT NOT NULL,
-    submitted_at TIMESTAMPTZ DEFAULT NOW(),
-    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-    notes TEXT,
-    documents JSONB DEFAULT '[]'::jsonb,
-    reviewed_by TEXT,
-    reviewed_at TIMESTAMPTZ
-);
-
--- 5. Notifications Table
-CREATE TABLE IF NOT EXISTS public.notifications (
-    id TEXT PRIMARY KEY,
-    recipient_type TEXT NOT NULL,
+    business_location_id TEXT,
     title TEXT NOT NULL,
-    message TEXT NOT NULL,
-    read BOOLEAN DEFAULT FALSE,
-    icon_type TEXT DEFAULT 'verification',
-    link_action TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    tagline TEXT,
+    discount_type TEXT NOT NULL CHECK (discount_type IN ('percent', 'fixed_amount', 'bogo', 'free_shipping')),
+    discount_value NUMERIC(10, 2) NOT NULL,
+    terms TEXT,
+    valid_from TIMESTAMPTZ NOT NULL,
+    valid_until TIMESTAMPTZ NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_promotions_branch_business 
+        FOREIGN KEY (business_location_id, business_id) 
+        REFERENCES public.business_locations(id, business_id) 
+        ON DELETE CASCADE
 );
 
--- 6. Direct User-to-Business Chat Conversations
-CREATE TABLE IF NOT EXISTS public.conversations (
+-- 10. PROFESSIONALS, EVENTS, OPPORTUNITIES & CLAIMS
+CREATE TABLE IF NOT EXISTS public.professionals (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    headline TEXT NOT NULL,
+    field_of_expertise TEXT NOT NULL,
+    city TEXT NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    hourly_rate_zmw NUMERIC(10, 2),
+    rating NUMERIC(3, 2) NOT NULL DEFAULT 5.0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.events (
+    id TEXT PRIMARY KEY,
+    business_id TEXT REFERENCES public.businesses(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    venue_name TEXT NOT NULL,
+    city TEXT NOT NULL,
+    start_date TIMESTAMPTZ NOT NULL,
+    end_date TIMESTAMPTZ NOT NULL,
+    ticket_price_zmw NUMERIC(10, 2) DEFAULT 0.0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.opportunities (
+    id TEXT PRIMARY KEY,
+    business_id TEXT REFERENCES public.businesses(id) ON DELETE CASCADE,
+    opportunity_type TEXT NOT NULL CHECK (opportunity_type IN ('job', 'tender', 'scholarship', 'wholesale_bulk')),
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    deadline TIMESTAMPTZ NOT NULL,
+    location_city TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.business_claims (
     id TEXT PRIMARY KEY,
     business_id TEXT NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
-    business_name TEXT NOT NULL,
-    business_logo TEXT,
-    business_phone TEXT,
-    user_id TEXT NOT NULL,
-    user_name TEXT NOT NULL,
-    user_phone TEXT,
-    last_message TEXT,
-    last_message_at TIMESTAMPTZ DEFAULT NOW(),
-    unread_count_for_business INTEGER DEFAULT 0,
-    unread_count_for_user INTEGER DEFAULT 0,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    claimant_user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
+    business_email TEXT NOT NULL,
+    business_phone TEXT NOT NULL,
+    claim_status TEXT NOT NULL DEFAULT 'pending' CHECK (claim_status IN ('pending', 'verified', 'rejected')),
+    official_role TEXT NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 7. Chat Messages
-CREATE TABLE IF NOT EXISTS public.chat_messages (
-    id TEXT PRIMARY KEY,
-    conversation_id TEXT NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-    sender_id TEXT NOT NULL,
-    sender_role TEXT NOT NULL CHECK (sender_role IN ('user', 'business')),
-    sender_name TEXT NOT NULL,
-    text TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    read BOOLEAN DEFAULT FALSE
-);
-
-CREATE INDEX IF NOT EXISTS idx_chat_messages_convo ON public.chat_messages(conversation_id);
-
--- 8. Audit Logs Table
+-- 11. AUDIT LOGS (Immutable)
 CREATE TABLE IF NOT EXISTS public.audit_logs (
     id TEXT PRIMARY KEY,
-    timestamp TIMESTAMPTZ DEFAULT NOW(),
-    actor TEXT NOT NULL,
-    role TEXT NOT NULL,
+    actor_user_id TEXT,
+    actor_role TEXT NOT NULL,
     action TEXT NOT NULL,
     target_entity TEXT NOT NULL,
     target_id TEXT NOT NULL,
-    details TEXT,
-    ip_address TEXT
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ====================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
--- ====================================================================
-
+-- 12. ROW LEVEL SECURITY (RLS) POLICIES
+ALTER TABLE public.countries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.administrative_areas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.business_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.business_locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.catalog_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.verifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.review_responses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.professionals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.opportunities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.business_claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Public read access to verified businesses
-CREATE POLICY "Public can view businesses" ON public.businesses
-    FOR SELECT USING (true);
+-- Read policies for public commercial discovery
+CREATE POLICY "Public read countries" ON public.countries FOR SELECT USING (true);
+CREATE POLICY "Public read locations" ON public.locations FOR SELECT USING (true);
+CREATE POLICY "Public read categories" ON public.categories FOR SELECT USING (true);
+CREATE POLICY "Public read businesses" ON public.businesses FOR SELECT USING (true);
+CREATE POLICY "Public read business_locations" ON public.business_locations FOR SELECT USING (true);
+CREATE POLICY "Public read catalog_items" ON public.catalog_items FOR SELECT USING (true);
+CREATE POLICY "Public read reviews" ON public.reviews FOR SELECT USING (true);
+CREATE POLICY "Public read review_responses" ON public.review_responses FOR SELECT USING (true);
+CREATE POLICY "Public read promotions" ON public.promotions FOR SELECT USING (true);
+CREATE POLICY "Public read professionals" ON public.professionals FOR SELECT USING (true);
+CREATE POLICY "Public read events" ON public.events FOR SELECT USING (true);
+CREATE POLICY "Public read opportunities" ON public.opportunities FOR SELECT USING (true);
 
--- Authenticated merchants can insert or update their own businesses
-CREATE POLICY "Merchants can insert businesses" ON public.businesses
-    FOR INSERT WITH CHECK (true);
+-- Authenticated member policies
+CREATE POLICY "Users can create businesses" ON public.businesses FOR INSERT WITH CHECK (true);
+CREATE POLICY "Members can update businesses" ON public.businesses FOR UPDATE USING (
+    EXISTS (
+        SELECT 1 FROM public.business_members bm 
+        WHERE bm.business_id = id AND bm.role IN ('owner', 'admin')
+    )
+);
 
-CREATE POLICY "Merchants can update own businesses" ON public.businesses
-    FOR UPDATE USING (true);
-
--- Public read access to reviews
-CREATE POLICY "Public can view reviews" ON public.reviews
-    FOR SELECT USING (true);
-
-CREATE POLICY "Users can create reviews" ON public.reviews
-    FOR INSERT WITH CHECK (true);
-
--- Notifications
-CREATE POLICY "Public can view notifications" ON public.notifications
-    FOR SELECT USING (true);
-
-CREATE POLICY "System can create notifications" ON public.notifications
-    FOR INSERT WITH CHECK (true);
-
--- Chat messages
-CREATE POLICY "Participants can view conversations" ON public.conversations
-    FOR SELECT USING (true);
-
-CREATE POLICY "Participants can create conversations" ON public.conversations
-    FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Participants can view messages" ON public.chat_messages
-    FOR SELECT USING (true);
-
-CREATE POLICY "Participants can insert messages" ON public.chat_messages
-    FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can create reviews" ON public.reviews FOR INSERT WITH CHECK (true);
+CREATE POLICY "Business owners can reply to reviews" ON public.review_responses FOR INSERT WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM public.business_members bm 
+        WHERE bm.business_id = business_id AND bm.role IN ('owner', 'admin', 'manager')
+    )
+);

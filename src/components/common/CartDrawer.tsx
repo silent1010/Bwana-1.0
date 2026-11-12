@@ -15,6 +15,8 @@ import {
   Wallet
 } from 'lucide-react';
 import { useCart, PaymentMethod, Order } from '../../context/CartContext';
+import { OtpVerificationModal } from '../auth/OtpVerificationModal';
+import { createOtpSession, OtpSession } from '../../utils/accountService';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -57,10 +59,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const [paymentOtpSession, setPaymentOtpSession] = useState<OtpSession | null>(null);
+
   if (!isOpen) return null;
 
   const handleCheckoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Prompt user with 4-digit payment confirmation OTP
+    const session = createOtpSession(customerPhone, 'whatsapp', 'payment_authorization');
+    setPaymentOtpSession(session);
+  };
+
+  const handlePaymentOtpConfirmed = () => {
+    setPaymentOtpSession(null);
     setIsProcessing(true);
 
     setTimeout(() => {
@@ -78,7 +89,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         setStep('confirmed');
         if (onOrderSuccess) onOrderSuccess(order);
       }
-    }, 1000);
+    }, 800);
   };
 
   return (
@@ -526,6 +537,21 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           </div>
         )}
       </div>
+
+      {/* 4-Digit Payment Authorization OTP Verification Modal */}
+      {paymentOtpSession && (
+        <OtpVerificationModal
+          isOpen={Boolean(paymentOtpSession)}
+          session={paymentOtpSession}
+          title="Authorize Mobile Money Payment"
+          subtitle={`A 4-digit payment authorization code was dispatched to ${customerPhone}.`}
+          onSuccess={handlePaymentOtpConfirmed}
+          onCancel={() => setPaymentOtpSession(null)}
+          onResendCode={(channel) => {
+            return createOtpSession(customerPhone, channel, 'payment_authorization');
+          }}
+        />
+      )}
     </div>
   );
 };

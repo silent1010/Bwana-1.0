@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  bwana-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bwana/platform:latest
+    container_name: bwana-app-instance
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - VITE_FIREBASE_PROJECT_ID=waking-continuity-fvk22
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - bwana-network
+
+networks:
+  bwana-network:
+    driver: bridge

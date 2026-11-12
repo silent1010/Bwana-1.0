@@ -10,10 +10,12 @@ import {
   ShieldCheck,
   FileJson,
   Layers,
-  Sparkles
+  Sparkles,
+  Database
 } from 'lucide-react';
 import { handleApiV1Request } from '../../api/v1Router';
 import { ApiResponse } from '../../api/types/apiContracts';
+import { DatabaseSchemaWorkbenchModal } from '../admin/DatabaseSchemaWorkbenchModal';
 
 interface ApiRouteDemo {
   method: 'GET' | 'POST';
@@ -107,6 +109,7 @@ export const ApiConsoleModal: React.FC<{ isOpen: boolean; onClose: () => void }>
   const [response, setResponse] = useState<ApiResponse<any> | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showSchemaWorkbench, setShowSchemaWorkbench] = useState(false);
 
   if (!isOpen) return null;
 
@@ -161,12 +164,21 @@ export const ApiConsoleModal: React.FC<{ isOpen: boolean; onClose: () => void }>
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-stone-400 hover:text-white p-1 rounded-lg hover:bg-stone-800 transition-colors cursor-pointer"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSchemaWorkbench(true)}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>PostgreSQL & Supabase Workbench</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="text-stone-400 hover:text-white p-1 rounded-lg hover:bg-stone-800 transition-colors cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Content split */}
@@ -282,6 +294,11 @@ export const ApiConsoleModal: React.FC<{ isOpen: boolean; onClose: () => void }>
           </div>
         </div>
       </div>
+
+      <DatabaseSchemaWorkbenchModal
+        isOpen={showSchemaWorkbench}
+        onClose={() => setShowSchemaWorkbench(false)}
+      />
     </div>
   );
 };

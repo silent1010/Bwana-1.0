@@ -78,6 +78,12 @@ export const ROLE_CAPABILITIES: Record<string, UserCapabilities> = {
     manageCategoriesAndLocations: false,
     managePlatformConfig: false,
     auditSystemActivity: false,
+
+    superAdminRootAccess: false,
+    manageDatabaseSeeder: false,
+    manageRelationalWorkbench: false,
+    overrideAnyVerification: false,
+    manageAdminRoles: false,
   },
 
   registered_user: {
@@ -119,6 +125,12 @@ export const ROLE_CAPABILITIES: Record<string, UserCapabilities> = {
     manageCategoriesAndLocations: false,
     managePlatformConfig: false,
     auditSystemActivity: false,
+
+    superAdminRootAccess: false,
+    manageDatabaseSeeder: false,
+    manageRelationalWorkbench: false,
+    overrideAnyVerification: false,
+    manageAdminRoles: false,
   },
 
   business_owner: {
@@ -160,6 +172,12 @@ export const ROLE_CAPABILITIES: Record<string, UserCapabilities> = {
     manageCategoriesAndLocations: false,
     managePlatformConfig: false,
     auditSystemActivity: false,
+
+    superAdminRootAccess: false,
+    manageDatabaseSeeder: false,
+    manageRelationalWorkbench: false,
+    overrideAnyVerification: false,
+    manageAdminRoles: false,
   },
 
   business_staff: {
@@ -201,6 +219,12 @@ export const ROLE_CAPABILITIES: Record<string, UserCapabilities> = {
     manageCategoriesAndLocations: false,
     managePlatformConfig: false,
     auditSystemActivity: false,
+
+    superAdminRootAccess: false,
+    manageDatabaseSeeder: false,
+    manageRelationalWorkbench: false,
+    overrideAnyVerification: false,
+    manageAdminRoles: false,
   },
 
   moderator: {
@@ -242,6 +266,12 @@ export const ROLE_CAPABILITIES: Record<string, UserCapabilities> = {
     manageCategoriesAndLocations: true, // Moderate categories
     managePlatformConfig: false,
     auditSystemActivity: true,
+
+    superAdminRootAccess: false,
+    manageDatabaseSeeder: false,
+    manageRelationalWorkbench: false,
+    overrideAnyVerification: false,
+    manageAdminRoles: false,
   },
 
   admin: {
@@ -283,8 +313,87 @@ export const ROLE_CAPABILITIES: Record<string, UserCapabilities> = {
     manageCategoriesAndLocations: true,
     managePlatformConfig: true,
     auditSystemActivity: true,
+
+    superAdminRootAccess: false,
+    manageDatabaseSeeder: true,
+    manageRelationalWorkbench: true,
+    overrideAnyVerification: true,
+    manageAdminRoles: false,
+  },
+
+  // SUPER ADMINISTRATOR: Exclusive to m.mumba8@gmail.com with ALL privileges granted
+  super_admin: {
+    searchBusinesses: true,
+    browseCategories: true,
+    viewBusinessProfiles: true,
+    viewLocationsAndHours: true,
+    viewRatingsAndReviews: true,
+    viewPhotosAndContact: true,
+    useMapDiscovery: true,
+    useListDiscovery: true,
+
+    createAccountAndLogin: true,
+    saveAndFavorite: true,
+    writeReviewsAndRatings: true,
+    uploadReviewPhotos: true,
+    reportIncorrectInformation: true,
+    shareListings: true,
+    managePersonalProfile: true,
+    viewSearchHistory: true,
+    receiveNotifications: true,
+
+    registerBusiness: true,
+    claimListing: true,
+    manageBusinessProfile: true,
+    manageProductsAndServices: true,
+    publishPromotions: true,
+    respondToReviews: true,
+    viewBusinessAnalytics: true,
+    manageEmployees: true,
+
+    reviewReportedContent: true,
+    suspendInappropriateListings: true,
+    handleDisputes: true,
+    reviewVerificationRequests: true,
+
+    fullPlatformAdministration: true,
+    manageUsersAndTenants: true,
+    manageCategoriesAndLocations: true,
+    managePlatformConfig: true,
+    auditSystemActivity: true,
+
+    // Super Admin Root Authority
+    superAdminRootAccess: true,
+    manageDatabaseSeeder: true,
+    manageRelationalWorkbench: true,
+    overrideAnyVerification: true,
+    manageAdminRoles: true,
   },
 };
+
+// Designated exclusive Super Administrator email
+export const SUPER_ADMIN_EMAIL = 'm.mumba8@gmail.com';
+
+/**
+ * Checks if an email is the designated exclusive Super Administrator.
+ * ONLY m.mumba8@gmail.com is authorized.
+ */
+export function isSuperAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+}
+
+/**
+ * Checks if a user has Super Administrator privileges.
+ * Strict enforcement: ONLY m.mumba8@gmail.com has super admin privileges.
+ */
+export function hasSuperAdminPrivileges(userOrEmail?: string | { email?: string; role?: string } | null): boolean {
+  if (!userOrEmail) return false;
+  if (typeof userOrEmail === 'string') {
+    return isSuperAdminEmail(userOrEmail);
+  }
+  return isSuperAdminEmail(userOrEmail.email);
+}
 
 // Aliases for compatibility
 ROLE_CAPABILITIES.user = ROLE_CAPABILITIES.registered_user;
@@ -292,7 +401,21 @@ ROLE_CAPABILITIES.customer = ROLE_CAPABILITIES.registered_user;
 ROLE_CAPABILITIES.business = ROLE_CAPABILITIES.business_owner;
 ROLE_CAPABILITIES.bwana_staff = ROLE_CAPABILITIES.moderator;
 
-export function getCapabilitiesForRole(role: UserRole): UserCapabilities {
+/**
+ * Retrieves capabilities for a given role, enforcing that super_admin privileges
+ * are strictly granted ONLY to m.mumba8@gmail.com.
+ */
+export function getCapabilitiesForRole(role: UserRole, userEmail?: string | null): UserCapabilities {
+  // If the user email is m.mumba8@gmail.com, grant ALL privileges without restriction
+  if (isSuperAdminEmail(userEmail)) {
+    return ROLE_CAPABILITIES.super_admin;
+  }
+
+  // If role is super_admin but email is NOT m.mumba8@gmail.com, prevent privilege escalation
+  if (role === 'super_admin' && !isSuperAdminEmail(userEmail)) {
+    return ROLE_CAPABILITIES.admin;
+  }
+
   return ROLE_CAPABILITIES[role] || ROLE_CAPABILITIES.public_user;
 }
 

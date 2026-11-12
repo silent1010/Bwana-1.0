@@ -234,8 +234,8 @@ const BusinessMarkerItem = React.memo<BusinessMarkerItemProps>(({
     <AdvancedMarker
       ref={handleRef}
       position={{
-        lat: biz.coordinates.latitude,
-        lng: biz.coordinates.longitude,
+        lat: biz.coordinates?.latitude ?? -12.8024,
+        lng: biz.coordinates?.longitude ?? 28.2132,
       }}
       title={biz.name}
       onClick={onSelect}
@@ -726,8 +726,8 @@ export const HomeScreenGoogleMapView: React.FC<HomeScreenGoogleMapViewProps> = (
           {activeRoute && (
             <AdvancedMarker
               position={{
-                lat: activeRoute.destination.coordinates.latitude,
-                lng: activeRoute.destination.coordinates.longitude,
+                lat: activeRoute.destination.coordinates?.latitude ?? -12.8024,
+                lng: activeRoute.destination.coordinates?.longitude ?? 28.2132,
               }}
               title={activeRoute.destination.name}
             >
